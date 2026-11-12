@@ -130,11 +130,11 @@ function buildSnippetBrowserItem(snippet, layerIndex, snippetIndex) {
 function getSnippetMeta(snippet) {
     const { sourceCount, mergedCount, fromLayer, promoted } = getSnippetDisplayMeta(snippet);
     const rangeStr = sourceCount
-        ? `${sourceCount} source messages`
+        ? `${sourceCount} 条来源消息`
         : mergedCount
-          ? `merged ${mergedCount} from L${fromLayer}`
+          ? `合并 ${mergedCount} 条，来自 L${fromLayer}`
           : '';
-    const seedStr = promoted ? ' promoted' : '';
+    const seedStr = promoted ? ' 已提升' : '';
     return `${rangeStr}${seedStr}`;
 }
 
@@ -183,7 +183,7 @@ function renderEmptySnippetBrowser(browser) {
     }
 
     browser.children().remove();
-    $('<div class="sc-muted"></div>').text('No snippets to display.').appendTo(browser);
+    $('<div class="sc-muted"></div>').text('没有可显示的摘要片段。').appendTo(browser);
 }
 
 function removeMissingChildElements(parent, selector, keys) {
@@ -267,7 +267,7 @@ function ensureSnippetText(row, snippet) {
     text.attr({
         'data-layer': String(snippet.layerIndex),
         'data-idx': String(snippet.snippetIndex),
-        title: 'Click to edit',
+        title: '点击编辑',
     });
     text.text(snippet.text);
     return text;
@@ -298,13 +298,13 @@ function ensureSnippetRedo(row, snippet) {
         row.children('.sc-snippet-redo').remove();
         return null;
     }
-    const redo = ensureSnippetButton(row, 'sc-snippet-redo', 'Regenerate this snippet');
+    const redo = ensureSnippetButton(row, 'sc-snippet-redo', '重做此摘要片段');
     redo.addClass('fa-solid fa-rotate-right');
     return redo;
 }
 
 function ensureSnippetDelete(row) {
-    const remove = ensureSnippetButton(row, 'sc-snippet-delete', 'Delete this snippet');
+    const remove = ensureSnippetButton(row, 'sc-snippet-delete', '删除此摘要片段');
     remove.addClass('fa-solid fa-xmark');
     return remove;
 }
@@ -387,7 +387,7 @@ async function commitSnippetEdit(textarea, position) {
         },
     );
     if (result.status === 'updated') {
-        toastr.success('Snippet updated', TOAST_TITLE, {
+        toastr.success('摘要片段已更新', TOAST_TITLE, {
             timeOut: 1500,
         });
     }
@@ -418,12 +418,12 @@ async function onSnippetRedoClick() {
         handleRegenerationTargetStatus(target);
         return;
     }
-    if (!confirm(`Regenerate summary for turns ${target.range[0]}-${target.range[1]}?`)) {
+    if (!confirm(`重做第 ${target.range[0]}-${target.range[1]} 回合的摘要？`)) {
         return;
     }
 
     toastr.info(
-        `Regenerating summary for turns ${target.range[0]}-${target.range[1]}...`,
+        `正在重做第 ${target.range[0]}-${target.range[1]} 回合的摘要……`,
         TOAST_TITLE,
         {
             timeOut: 3000,
@@ -444,7 +444,7 @@ async function onSnippetDeleteClick() {
     });
     if (result.status === 'deleted') {
         refreshUi();
-        toastr.info(`Snippet removed from Layer ${result.layerIndex}`, TOAST_TITLE);
+        toastr.info(`已从第 ${result.layerIndex} 层移除摘要片段`, TOAST_TITLE);
     }
 }
 
@@ -455,7 +455,7 @@ function handleRegenerationTargetStatus(target) {
     }
     if (target.status === 'unsupported') {
         toastr.warning(
-            'Only Layer 0 (turn summary) snippets can be regenerated. Promoted meta-summaries have no source turns.',
+            '只有第 0 层（回合摘要）的摘要片段可以重做。提升后的元摘要没有可重做的来源回合。',
             TOAST_TITLE,
             { timeOut: 5000 },
         );
@@ -489,20 +489,20 @@ function handleRegenerationResult(result) {
     if (result.status === 'regenerated') {
         refreshUi();
         toastr.success(
-            `Snippet regenerated for turns ${result.range[0]}-${result.range[1]}`,
+            `已重做第 ${result.range[0]}-${result.range[1]} 回合的摘要片段`,
             TOAST_TITLE,
             { timeOut: 3000 },
         );
         return;
     }
     if (result.status === 'empty-source') {
-        toastr.error('Source turns are empty - cannot regenerate.', TOAST_TITLE);
+        toastr.error('来源回合为空，无法重做。', TOAST_TITLE);
     } else if (result.status === 'aborted') {
-        toastr.warning('Regeneration stopped - original snippet kept.', TOAST_TITLE);
+        toastr.warning('重做已停止，保留原摘要片段。', TOAST_TITLE);
     } else if (result.status === 'blocked') {
-        toastr.warning('Regeneration blocked - original snippet kept.', TOAST_TITLE);
+        toastr.warning('重做被阻止，保留原摘要片段。', TOAST_TITLE);
     } else if (result.status === 'failed') {
-        toastr.error('Regeneration failed - original snippet kept.', TOAST_TITLE);
+        toastr.error('重做失败，保留原摘要片段。', TOAST_TITLE);
     } else if (result.status === 'busy') {
         showBusySummaryToast();
     } else if (result.status === 'unsupported') {

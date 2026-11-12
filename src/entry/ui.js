@@ -16,7 +16,11 @@ import { formatCompactTokenCount } from '../core/token-count.js';
 import { describeAutoWork } from '../core/summarization-routes.js';
 import { estimateContextPreview } from '../core/token-budget.js';
 import { buildInjection, measureInjection } from '../core/memory-injection.js';
-import { syncAllSettingsToDOM, syncRoleMaskModeControl } from './ui-bind.js';
+import {
+    syncAllSettingsToDOM,
+    syncRoleMaskModeControl,
+    syncStripChineseIdeographControl,
+} from './ui-bind.js';
 import { updateSnippetBrowser } from './ui-snippets.js';
 import { syncConnectionPanels } from './ui-connection.js';
 import {
@@ -85,6 +89,7 @@ export async function updateUI({ queue }) {
  */
 function syncSettingsInputs(s, effectiveSettings) {
     syncAllSettingsToDOM(s);
+    syncStripChineseIdeographControl(s);
     syncEasyPayloadSchematic(effectiveSettings);
     syncMemoryModeControls(s);
     syncLLMContextPreview(s);
@@ -121,12 +126,12 @@ export function syncLLMContextPreview(s = getEffectiveSettings()) {
     const $l0Value = $('#sc_llm_context_l0');
     const $l1Value = $('#sc_llm_context_l1');
     $mainValue.text(
-        `${formatCompactTokenCount(model.mainMin)} → ${formatCompactTokenCount(model.mainMax)} + ST prompt`,
+        `${formatCompactTokenCount(model.mainMin)} → ${formatCompactTokenCount(model.mainMax)} + ST 提示词`,
     );
     $l0Value.text(
-        `~${formatCompactTokenCount(model.l0Typical)} (Max ~${formatCompactTokenCount(model.l0Max)})`,
+        `~${formatCompactTokenCount(model.l0Typical)}（最大 ~${formatCompactTokenCount(model.l0Max)}）`,
     );
-    $l1Value.text(`Max ~${formatCompactTokenCount(model.l1Total)} tokens`);
+    $l1Value.text(`最大 ~${formatCompactTokenCount(model.l1Total)} Token`);
     setContextValueColor($mainValue, model.mainMax);
     setContextValueColor($l0Value, model.l0Typical);
     setContextValueColor($l1Value, model.l1Total);
@@ -152,14 +157,14 @@ async function renderStatusOverview(prefix, modeField, overview) {
  */
 async function getWorkerLabel(s, work, busy) {
     if (busy) {
-        return 'Running';
+        return '运行中';
     }
     if (!s.enabled) {
-        return 'Off';
+        return '已关闭';
     }
 
     const backlogCount = work?.ready ? work.backlog : 0;
-    return backlogCount > 0 ? `Backlog ${backlogCount}` : 'Idle';
+    return backlogCount > 0 ? `积压 ${backlogCount}` : '空闲';
 }
 
 function syncMemoryModeControls(s) {
@@ -210,7 +215,7 @@ async function renderVerbatimBudget(s, work) {
         return {
             budget: s.verbatimTokenBudget,
             verbatim: {
-                label: 'Recent Chat',
+                label: '近期原文',
                 kind: 'verbatim',
                 count: work.verbatimTokens,
                 estimated: work.verbatimEstimated,
@@ -234,7 +239,7 @@ async function renderTriggerGauge(s, work) {
         return {
             budget: model.triggerTokens,
             verbatim: {
-                label: 'Queued',
+                label: '待摘要',
                 kind: 'pending',
                 count: model.queuedTokens,
                 estimated: model.queuedEstimated,
@@ -248,7 +253,7 @@ async function renderTriggerGauge(s, work) {
 async function renderMemoryBudget(s, usage, prefix = 'memory') {
     await renderBudgetCard(prefix, () => ({
         budget: s.memoryTokenBudget,
-        verbatim: { label: 'Live Chat', kind: 'verbatim', count: 0, estimated: false },
+        verbatim: { label: '当前聊天', kind: 'verbatim', count: 0, estimated: false },
         layers: orderMemoryBudgetParts(usage.parts),
     }));
 }
@@ -284,7 +289,7 @@ function renderBudgetView(view, targets) {
             .toggleClass('sc-context-segment-small', segment.small)
             .css('flex', `${Math.max(segment.count, 1)} 1 0`)
             .attr('title', getBudgetSegmentTitle(segment))
-            .text(`${segment.label} (${formatBudgetTokenLabel(segment.count, segment.estimated)})`)
+            .text(`${segment.label}（${formatBudgetTokenLabel(segment.count, segment.estimated)}）`)
             .appendTo(bar);
         renderBudgetLegendItem(legend, segment);
     }
@@ -299,7 +304,7 @@ function renderBudgetView(view, targets) {
 }
 
 function clearBudgetView(totalSelector, barSelector, legendSelector) {
-    $(totalSelector).text('Unavailable');
+    $(totalSelector).text('不可用');
     $(barSelector).empty();
     $(legendSelector).empty();
 }
@@ -310,7 +315,7 @@ function renderBudgetLegendItem(legend, segment) {
         .addClass(`sc-context-${segment.kind}`)
         .appendTo(item);
     $('<span class="sc-context-legend-text"></span>')
-        .text(`${segment.label}: ${formatBudgetTokenLabel(segment.count, segment.estimated)}`)
+        .text(`${segment.label}：${formatBudgetTokenLabel(segment.count, segment.estimated)}`)
         .attr('title', getBudgetSegmentTitle(segment))
         .appendTo(item);
     item.appendTo(legend);
@@ -324,7 +329,7 @@ function getContextBudgetTotalText(view) {
 }
 
 function getBudgetSegmentTitle(segment) {
-    return `${segment.label}: ${formatBudgetTokenLabel(segment.count, segment.estimated)} tokens`;
+    return `${segment.label}：${formatBudgetTokenLabel(segment.count, segment.estimated)} Token`;
 }
 
 /**
@@ -334,20 +339,20 @@ function getBudgetSegmentTitle(segment) {
  * @returns {void}
  */
 function renderLayerStats(s, store, ghostedCount) {
-    let statsHtml = `<div class="sc-layer-stat"><strong>${ghostedCount}</strong> messages ghosted (hidden from LLM, visible to you)</div>`;
+    let statsHtml = `<div class="sc-layer-stat"><strong>${ghostedCount}</strong> 条消息已隐藏（对 LLM 不可见，你仍可见）</div>`;
     const nonEmptyLayers = listNonEmptyLayers(store);
     for (const { index, layer } of nonEmptyLayers) {
         statsHtml += `<div class="sc-layer-stat">
         <span class="sc-layer-label">${layerLabel(index)}:</span>
-        <strong>${layer.length}</strong> / ${s.snippetsPerLayer} memories
+        <strong>${layer.length}</strong> / ${s.snippetsPerLayer} 条记忆
         </div>`;
     }
     const boundary = getCurrentSummarizedBoundary(getChat(), store);
     if (boundary >= 0) {
-        statsHtml += `<div class="sc-layer-stat sc-muted">Current summarized boundary: ${boundary}</div>`;
+        statsHtml += `<div class="sc-layer-stat sc-muted">当前已摘要边界：${boundary}</div>`;
     }
     if (nonEmptyLayers.length === 0) {
-        statsHtml = '<div class="sc-layer-stat sc-muted">No summaries yet for this chat.</div>';
+        statsHtml = '<div class="sc-layer-stat sc-muted">当前聊天还没有摘要。</div>';
     }
 
     $('#sc_layer_stats').html(statsHtml);
@@ -361,8 +366,8 @@ function renderLayerStats(s, store, ghostedCount) {
  * @returns {void}
  */
 function renderPreview(injection, usage) {
-    $('#sc_preview').val(injection.text || '(empty - no summaries yet)');
+    $('#sc_preview').val(injection.text || '(空 - 还没有摘要)');
     $('#sc_preview_token_count').text(
-        `${formatBudgetTokenLabel(usage.total.count, usage.total.estimated)} tokens`,
+        `${formatBudgetTokenLabel(usage.total.count, usage.total.estimated)} Token`,
     );
 }

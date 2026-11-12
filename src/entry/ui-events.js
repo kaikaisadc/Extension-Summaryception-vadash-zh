@@ -239,19 +239,19 @@ function triggerImport(notify, gate) {
             const data = JSON.parse(text);
             const outcome = await importSummaryceptionMemory(data, { notify, gate });
             if (outcome.status === 'invalid') {
-                toastr.error('Invalid file format.');
+                toastr.error('记忆格式不兼容或已损坏；5.x旧版摘要不能直接导入。本次未替换当前记忆。');
                 return;
             }
             if (outcome.status === 'failed') {
-                toastr.error('Import failed - check console.');
+                toastr.error('导入失败，请查看控制台。');
                 return;
             }
-            toastr.success(`Memory imported. ${outcome.count} snippets loaded.`, TOAST_TITLE, {
+            toastr.success(`已导入记忆，共加载 ${outcome.count} 条摘要片段。`, TOAST_TITLE, {
                 timeOut: 4000,
             });
         } catch (err) {
             error(err);
-            toastr.error('Import failed - check console.');
+            toastr.error('导入失败，请查看控制台。');
         }
     };
     input.click();
@@ -263,9 +263,9 @@ function triggerImport(notify, gate) {
 function onResetDefaults() {
     if (
         !confirm(
-            'Reset all Advanced Settings to defaults?\n\n' +
-                'This will reset sliders, stock prompts, injection template, and strip patterns.\n' +
-                'It will NOT clear your summary memory, connection settings, selected memory mode, or custom prompt fields.',
+            '把全部高级设置恢复默认值？\n\n' +
+                '这会重置滑块、内置提示词、注入模板和清理模式。\n' +
+                '不会清除摘要记忆、连接设置、已选记忆模式或自定义提示词字段。',
         )
     ) {
         return;
@@ -275,7 +275,7 @@ function onResetDefaults() {
 
     saveAndRefreshUi();
     toastr.success(
-        'Advanced settings reset to defaults. Memory mode, connection settings, and summary memory were preserved.',
+        '高级设置已恢复默认值。记忆模式、连接设置和摘要记忆均已保留。',
         TOAST_TITLE,
         { timeOut: 4000 },
     );
@@ -287,19 +287,19 @@ function onResetDefaults() {
  */
 function bindClickHandlers(notify, gate) {
     $(document).on('click', '#sc_clear_memory', async function () {
-        if (!confirm('Clear ALL Summaryception memory for this chat and unghost all messages?')) {
+        if (!confirm('清空当前聊天的全部分层摘要记忆，并恢复本扩展隐藏的消息？')) {
             return;
         }
 
         try {
             await clearChatData();
-            toastr.success('Memory cleared & messages unghosted.', TOAST_TITLE, {
+            toastr.success('记忆已清空，本扩展隐藏的消息已恢复。', TOAST_TITLE, {
                 timeOut: 2000,
             });
         } catch (e) {
             error('Clear memory failed:', e);
             toastr.error(
-                'Clear failed. Open F12 and update Summaryception if this repeats.',
+                '清空失败。请打开 F12；若反复出现，请更新分层摘要扩展。',
                 TOAST_TITLE,
                 { timeOut: 8000 },
             );
@@ -317,7 +317,7 @@ function bindClickHandlers(notify, gate) {
         a.download = `summaryception_${Date.now()}.json`;
         a.click();
         URL.revokeObjectURL(url);
-        toastr.success('Memory exported', TOAST_TITLE);
+        toastr.success('记忆已导出', TOAST_TITLE);
     });
 
     $(document).on('click', '#sc_import', () => triggerImport(notify, gate));
@@ -327,20 +327,20 @@ function bindClickHandlers(notify, gate) {
     $(document).on('click', '#sc_insert_recall_template', function () {
         if (
             !confirm(
-                'Replace the current Injection Wrapper Template with the recall-repeat sample?',
+                '用重复召回示例替换当前注入包装模板？',
             )
         ) {
             return;
         }
         $('#sc_injection_template').val(RECALL_REPEAT_INJECTION_TEMPLATE).trigger('change');
-        toastr.success('Recall-repeat template inserted.', TOAST_TITLE);
+        toastr.success('重复召回模板已插入。', TOAST_TITLE);
     });
 
     $(document).on('click', '#sc_restore_injection_template', function () {
-        if (!confirm('Restore the default Injection Wrapper Template?')) {
+        if (!confirm('恢复默认注入包装模板？')) {
             return;
         }
         $('#sc_injection_template').val(defaultSettings.injectionTemplate).trigger('change');
-        toastr.success('Default injection template restored.', TOAST_TITLE);
+        toastr.success('默认注入模板已恢复。', TOAST_TITLE);
     });
 }

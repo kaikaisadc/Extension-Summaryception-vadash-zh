@@ -1,6 +1,6 @@
 {
     "name": "extension-summaryception",
-    "version": "24.29.0",
+    "version": "24.29.1",
     "description": "Layered recursive summarization SillyTavern extension",
     "type": "module",
     "main": "index.js",
@@ -33,15 +33,15 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/vadash/Extension-Summaryception.git"
+        "url": "git+https://github.com/kaikaisadc/Extension-Summaryception-vadash-zh.git"
     },
     "keywords": [],
-    "author": "",
+    "author": "Lodactio (original author), kaikaisadc (Chinese maintainer)",
     "license": "AGPL-3.0-or-later",
     "bugs": {
-        "url": "https://github.com/vadash/Extension-Summaryception/issues"
+        "url": "https://github.com/kaikaisadc/Extension-Summaryception-vadash-zh/issues"
     },
-    "homepage": "https://github.com/vadash/Extension-Summaryception#readme",
+    "homepage": "https://github.com/kaikaisadc/Extension-Summaryception-vadash-zh#readme",
     "devDependencies": {
         "@eslint/js": "^9.39.4",
         "@vitest/coverage-v8": "^3.2.6",

@@ -10,7 +10,7 @@ import { isAssistantMessage, isRecord } from './continuity-state.js';
  */
 
 /** The message-extra key a Continuity Checkpoint payload lives under (ADR-0017). */
-const CHECKPOINT_KEY = 'summaryception_continuity';
+const CHECKPOINT_KEY = 'summaryception_vadash_zh_continuity';
 
 /** Host generation types that replace the chat's last message. */
 const REROLL_TYPES = new Set(['swipe', 'regenerate']);

@@ -3,12 +3,14 @@ import {
     MEMORY_MODES,
     MEMORY_POSITIONS,
     MEMORY_ROLES,
-    PROMPT_SETTING_KEYS,
+    PROMPT_DEFINITIONS,
     SLIDER_LIMITS,
     defaultSettings,
+    hasChinesePromptPreset,
 } from './constants.js';
 import { CONNECTION_ROUTES, getRouteTimeoutLimits } from './connection-routes.js';
 import { clampInteger, clampToStep } from './numeric.js';
+import { isPlainObject } from './objects.js';
 
 /**
  * The read-time Settings Normalization pass: the one place a
@@ -17,8 +19,6 @@ import { clampInteger, clampToStep } from './numeric.js';
  * its tests, and the load path, the reset pass, and the UI's derive-after-edit
  * path all reach it without touching the host.
  */
-
-const PROMPT_PRESET_VALUES = Object.freeze(['narrative', 'continuity', 'custom']);
 
 /**
  * The retention and timeout passes always clamp and never report change,
@@ -35,11 +35,13 @@ export function normalizeSettings(settings, { hadMaskUserRoleMode }) {
     normalizeRequestTimeouts(settings);
     const continuitySettingsNormalized = normalizeContinuitySettings(settings);
     const promptSettingsNormalized = normalizePromptSettings(settings);
+    const stripChineseSettingsNormalized = normalizeStripChineseIdeographs(settings);
     return (
         memorySettingsNormalized ||
         roleMaskSettingsNormalized ||
         continuitySettingsNormalized ||
-        promptSettingsNormalized
+        promptSettingsNormalized ||
+        stripChineseSettingsNormalized
     );
 }
 
@@ -284,38 +286,113 @@ export function deriveAdvancedEngineTuning(settings) {
     );
 }
 
+/**
+ * Return a plain object draft container, replacing a malformed one. The
+ * replacement is a plain object, so the next pass reports no change and the
+ * caller cannot enter a save loop.
+ * @param {ExtensionSettings} settings
+ * @returns {{ drafts: Record<string, unknown>, changed: boolean }}
+ */
+function ensurePromptCustomDrafts(settings) {
+    const settingsRecord = asSettingsRecord(settings);
+    const existing = settingsRecord.promptCustomDrafts;
+    if (isPlainObject(existing)) {
+        return {
+            drafts: /** @type {Record<string, unknown>} */ (existing),
+            changed: false,
+        };
+    }
+    /** @type {Record<string, unknown>} */
+    const drafts = {};
+    settingsRecord.promptCustomDrafts = drafts;
+    return { drafts, changed: true };
+}
+
+/**
+ * Normalize the eight prompt fields through PROMPT_DEFINITIONS. A legal
+ * built-in selection keeps its key and takes that preset's current text; a
+ * non-empty custom text is left exactly as the user wrote it. An unknown
+ * selection preserves any usable text as a draft before falling back to the
+ * field's default preset. Empty or malformed custom text restores a non-empty
+ * draft when one exists, else the field default.
+ * @param {ExtensionSettings} settings
+ * @returns {boolean} Whether settings were changed.
+ */
 function normalizePromptSettings(settings) {
-    let changed = false;
-    for (const binding of PROMPT_SETTING_KEYS) {
-        const defaults = /** @type {Record<string, unknown>} */ (defaultSettings);
-        const settingsRecord = /** @type {Record<string, unknown>} */ (
-            /** @type {unknown} */ (settings)
-        );
-        const preset = settingsRecord[binding.presetKey];
-        const isCustom = preset === 'custom';
+    const settingsRecord = asSettingsRecord(settings);
+    const defaultsRecord = /** @type {Record<string, unknown>} */ (
+        /** @type {unknown} */ (defaultSettings)
+    );
+    const { drafts, changed: draftsChanged } = ensurePromptCustomDrafts(settings);
+    let changed = draftsChanged;
 
-        if (!isSettingValue(PROMPT_PRESET_VALUES, preset)) {
-            settingsRecord[binding.presetKey] = defaults[binding.presetKey];
-            settingsRecord[binding.settingKey] = defaults[binding.settingKey];
-            changed = true;
+    for (const { presetKey, settingKey, defaultPreset, presets } of PROMPT_DEFINITIONS) {
+        const preset = settingsRecord[presetKey];
+        const promptText = settingsRecord[settingKey];
+        const hasUsableText = typeof promptText === 'string' && promptText.trim().length > 0;
+        const isBuiltIn =
+            typeof preset === 'string' &&
+            preset !== 'custom' &&
+            Object.hasOwn(presets, preset) &&
+            typeof presets[preset] === 'string';
+
+        if (isBuiltIn) {
+            const presetText = presets[preset];
+            if (settingsRecord[settingKey] !== presetText) {
+                settingsRecord[settingKey] = presetText;
+                changed = true;
+            }
             continue;
         }
 
-        const promptText = settingsRecord[binding.settingKey];
-        // Blank custom text counts as no custom text; it would inject an
-        // empty prompt slot.
-        if (isCustom && typeof promptText === 'string' && promptText.trim()) {
-            continue;
-        }
-
-        if (settingsRecord[binding.presetKey] !== defaults[binding.presetKey]) {
-            settingsRecord[binding.presetKey] = defaults[binding.presetKey];
+        if (preset === 'custom') {
+            if (hasUsableText) {
+                continue;
+            }
+            const draft = drafts[settingKey];
+            if (typeof draft === 'string' && draft.trim().length > 0) {
+                settingsRecord[settingKey] = draft;
+                changed = true;
+                continue;
+            }
+        } else if (hasUsableText) {
+            // Unknown preset: keep the user's usable text before resetting the
+            // field to its default, so selecting custom can recover it.
+            drafts[settingKey] = promptText;
             changed = true;
         }
-        if (settingsRecord[binding.settingKey] !== defaults[binding.settingKey]) {
-            settingsRecord[binding.settingKey] = defaults[binding.settingKey];
+
+        const defaultText = presets[defaultPreset];
+        const fallbackText =
+            typeof defaultText === 'string' ? defaultText : defaultsRecord[settingKey];
+        if (settingsRecord[presetKey] !== defaultPreset) {
+            settingsRecord[presetKey] = defaultPreset;
+            changed = true;
+        }
+        if (settingsRecord[settingKey] !== fallbackText) {
+            settingsRecord[settingKey] = fallbackText;
             changed = true;
         }
     }
+
     return changed;
+}
+
+/**
+ * A selected Chinese preset needs Han ideographs in its own output, so strip
+ * mode is forced off. The conservative rule covers all eight fields, including
+ * the Auditor presets while the Auditor itself is disabled. No Chinese preset
+ * leaves the user's own choice untouched; nothing auto-enables stripping.
+ * @param {ExtensionSettings} settings
+ * @returns {boolean} Whether settings were changed.
+ */
+function normalizeStripChineseIdeographs(settings) {
+    if (!hasChinesePromptPreset(settings)) {
+        return false;
+    }
+    if (settings.stripChineseIdeographs === false) {
+        return false;
+    }
+    settings.stripChineseIdeographs = false;
+    return true;
 }

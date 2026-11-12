@@ -1,245 +1,216 @@
-# Summaryception
+# 分层摘要 · 中文版（Summaryception 中文分支）
 
-Layered recursive memory for SillyTavern.
+这是 [SillyTavern](https://github.com/SillyTavern/SillyTavern) 的分层递归摘要扩展 **Summaryception** 的中文分支，面向长篇角色扮演聊天：近期聊天保持原文，较旧聊天被逐层压缩为记忆，原始消息仍留在聊天界面中，只是不再发送给模型。
 
-Summaryception is for long roleplay chats that should remember what happened without shoving the whole backstory into every prompt. It runs as a plain browser extension inside [SillyTavern](https://github.com/SillyTavern/SillyTavern). No build step, no server, no database.
+## 来源、版本与归属
 
-The short version: recent chat stays verbatim. Older chat becomes compact memory. The original messages stay in the chat UI, but Summaryception hides them from the model once they are covered by memory.
+- 上游项目：[vadash/Extension-Summaryception](https://github.com/vadash/Extension-Summaryception)
+- 上游版本：**24.29.0**
+- 本中文版本：**24.29.1**
+- 本仓库：[kaikaisadc/Extension-Summaryception-vadash-zh](https://github.com/kaikaisadc/Extension-Summaryception-vadash-zh)
+- 许可：**AGPL-3.0-or-later**，完整许可证见 [LICENSE](LICENSE)
+- 原作者与上游历史完整保留在 Git 历史中；本仓库以独立仓库形式发布，在 GitHub 上**不是上游的 fork 网络成员**，但保留了上游提交历史。
 
-## Why this exists
+本分支重写了中文界面、中文帮助文本和八项中文提示词，并调整了持久化命名空间。它**不是从零开始的原创项目**，也不声称全部内容为原创；上游代码、结构、英文提示词和文档归属仍然有效。`README.en.md` 是上游英文 README 的原文快照，`LICENSE` 保持原样。
 
-Long chats usually fail in one of two boring ways.
+## 安装
 
-You keep too much raw chat, so every generation drags a huge pile of old prose through the context window. Or you keep one normal summary, watch it blur details together, and start adding more raw chat again to compensate.
+要求：最新稳定版 SillyTavern。**不需要构建、不需要 npm、不需要安装依赖。**
 
-Summaryception takes the other route. It summarizes older chat in small pieces, then summarizes those summaries again when they pile up. The result is a memory stack: recent text at the bottom, compact turn summaries above it, deeper summaries above those.
+1. 打开酒馆的“扩展”页面。
+2. 选择“安装扩展”。
+3. 填入：`https://github.com/kaikaisadc/Extension-Summaryception-vadash-zh`
+4. 安装后，在扩展设置中打开“分层摘要 · 中文版”。
 
-```text
-Current chat
-|
-|  Older messages: ghosted from the model, still visible to you
-|  Recent messages: sent word for word
-|
-|  Injected memory:
-|
-|  Layer 2+  deep memory from promoted summaries
-|  Layer 1   merged Layer 0 summaries
-|  Layer 0   direct summaries of chat turns
-|  Verbatim  the live recent window
-```
+默认安装目录名必须是 `Extension-Summaryception-vadash-zh`。手动安装时也请保持默认目录名，否则设置界面可能无法加载（扩展的模板路径按该目录名固定）。
 
-That sounds abstract until you hit a 2,000 message chat and the model still remembers who promised what, who is injured, where the party left the key, and which subplot was quietly waiting in the corner.
+### 不要与其他 Summaryception 双开
 
-## What it does
+请不要同时启用本分支与上游 Summaryception、其他 Summaryception 中文分支或旧 5.x 版本。
 
-- Keeps a rolling verbatim window for recent chat.
-- Compresses older chat into Layer 0 memories.
-- Promotes older Layer 0 memories into deeper layers when the layer gets crowded.
-- Keeps each memory a single `<narrative>` envelope with a trailing `current_date_time` scene-time line.
-- Ghosts summarized messages with SillyTavern's `/hide`, so they stop reaching the model but remain readable in the UI.
-- Injects the assembled memory through SillyTavern extension prompts, or exposes it as `{{summaryception_memory}}` for custom prompt layouts.
-- Runs background summarization without mutating the prompt during an active generation.
-- Optional Continuity Auditor keeps a live game-state in an `<active_continuity>` block next to the injected memory.
+本分支使用了独立的存储命名空间（`summaryception_vadash_zh`），因此“清空”不会误删另一分支的摘要。但两者仍然共用：
 
-## Install
+- `{{summaryception_memory}}` 宏；
+- `/sc-*` 斜杠命令；
+- 页面 DOM id 与样式类；
+- 酒馆的消息隐藏状态。
 
-Requirements: the latest stable SillyTavern release.
+命名空间隔离不等于可以双开。启用本分支前，请停用或卸载旧的 Summaryception。
 
-In SillyTavern:
+## 从旧 5.x 版本迁移
 
-1. Open Extensions.
-2. Choose Install Extension.
-3. Paste `https://github.com/vadash/Extension-Summaryception`.
-4. Install, then open Summaryception in extension settings.
+**旧 5.x 的聊天数据不会自动迁移到本分支。** 本分支不会静默读取、改写或丢弃旧数据；新版导入还会拒绝旧格式 JSON。
 
-## First setup
+如果你需要保留旧版内容，请自行按以下顺序操作；本仓库不替用户执行这些步骤：
 
-Start with Easy mode unless you already know what you want to tune.
+1. 先在旧版中导出摘要，并备份当前聊天。
+2. 如果需要恢复旧版隐藏的原文消息，在完成备份后，用旧版执行“清空记忆”。这会**确实清除旧版摘要**，同时恢复旧版扩展隐藏的消息。
+3. 停止/禁用旧版扩展。
+4. 启用本分支，从当前聊天重新积累记忆。
 
-Set Fast Summarizer to your normal API or a SillyTavern Connection Profile. This model turns raw chat into Layer 0 summaries, so it should be cheap, fast, and good enough at extracting facts.
+新版导入对 `layers`、`sourceMessageIds`、`ghostedMessageIds` 做严格校验。旧 5.x JSON 会在触碰当前聊天存储之前被拒绝，被拒绝的旧格式不会出现“导入一半、静默丢片段”的情况，当前记忆也不会被替换。这一保证仅针对被拒绝的旧格式，不表示合法导入在遇到网络错误时也具备事务回滚。
 
-Smart Deep Memory is optional. Point it at a stronger model if you want Layer 1+ merges to read better than what the raw-chat summarizer produces.
+## 更新本分支
 
-Then pick a memory mode. Your provider's cache rules decide whether Prefix Cache saves you money or just makes the prompt fatter.
+如果你安装的是本仓库：
 
-### Balanced
+1. 打开酒馆的扩展管理。
+2. 对本扩展点击“检查更新”。
+3. 更新后刷新页面。
 
-The one to pick unless you have a reason not to. Balanced keeps recent chat near the 22k verbatim budget and summarizes overflow into a 6k queued range as it arrives. The goal is simple: keep the model inside a useful context range without relying on provider caching.
+不需要卸载重装。普通更新不会清空设置或聊天记忆：设置保存在酒馆扩展设置中，摘要记忆保存在聊天元数据中，命名空间保持稳定。
 
-This mode works everywhere and keeps context size fairly steady. If cached input is not much cheaper than normal input, stop here. You are done.
+从旧 repo 安装的版本**不会**仅凭 `manifest.json` 自动把 remote 改到新仓库；需要更新仓库地址时，请重新安装本仓库并保持默认目录名。
 
-### Prefix Cache
+## 首次设置
 
-Use Prefix Cache with the normal prompt caches most providers offer. It holds a 36k live span: 20k verbatim plus a 16k queued range, so more of each request can stay cached.
+建议先用“简易”模式。把“快速摘要器”指向你常用的 API 或一个 SillyTavern 连接配置；它负责把原文聊天压缩成第 0 层摘要。“智能深层记忆”是可选的更强连接，只在第 1+ 层深层合并时使用。
 
-Suppose the next request keeps the same start but changes the tail. A prefix cache can still reuse that unchanged start. Your usual lorebooks work normally; no migration or special outlet is needed.
+然后选择记忆模式。缓存是否真的更便宜取决于供应商，扩展不保证使用缓存一定省钱。
 
-Pick this mode when cached input is cheaper and your provider supports partial prefix reuse. The tradeoff is a larger prompt, and a summary flush also hands the provider a new prefix to cache.
+## 记忆模式与 Token 预算
 
-One more knob matters here and only here. The cache TTL decides when Prefix Cache considers the provider cache expired: once the chat has sat idle longer than the TTL (default 30 minutes), loading it triggers a stale-cache suggestion to Force Summarize first. The next message pays full input price either way, so summarizing first avoids paying for the same tokens twice.
+Token 是模型的分词单位，**不等于汉字数或字数**。中文、英文、标点和代码的折算方式都可能不同；不同模型的 tokenizer 也不一样。
 
-The defaults are intentionally conservative: 22k recent verbatim tokens, 10k injected memory, 280-token Layer 0 targets, and promotion after old memories stack up.
+预算也不是“整次请求硬上限”。下面这些预算只约束各自对应的部分，卡片、世界书、预设、系统提示词、用户输入等仍然占用模型窗口，因此实际请求可能超过某个单项预算。
 
-## Controls you will actually use
+### 默认（Balanced）
 
-Force Summarize processes eligible old chat now instead of waiting for the background worker.
+- 原文保留区：约 **22k** Token。
+- 待摘要区：约 **6k** Token。
+- 近期聊天保持原文；当“原文保留区 + 待摘要区”填满后，较旧聊天进入摘要流程。
 
-Slop Breaker is for the moment when the model starts repeating itself or gets stuck in a bad format. It summarizes through the current live context cut, ghosts that text, and forces the next generation to work from compact memory instead of stale phrasing.
+适合提示词缓存不可用、效果较弱，或不想围绕供应商缓存做规划的情况。
 
-Stop cancels the current summarization run.
+### 前缀缓存（Prefix Cache）
 
-Clear removes Summaryception memory for the current chat and unghosts messages Summaryception owns. It does not delete chat messages.
+- 原文保留区：约 **20k** Token。
+- 待摘要区：约 **16k** Token。
+- 让原文聊天积累更多后一次性刷新，并尽量复用未变的最长提示词前缀。
 
-## Advanced mode
+缓存能否复用、是否更便宜由供应商决定。此模式提示词更大，一次摘要刷新也会开启新的缓存前缀；普通世界书无需特殊处理。
 
-Advanced mode exposes the knobs Easy mode hides:
+### 主要预算与批量参数
 
-- Verbatim and injected memory token budgets.
-- Layer 0 batch sizes and source token caps.
-- Memories per layer and memories per merge.
-- Memory placement: Before Prompt, In Prompt, In Chat, or Macro Only.
-- Memory role: system, user, or assistant.
-- Separate prompts for Layer 0 summaries, Layer 1+ promotions, and repair attempts.
-- Regex cleanup, Chinese ideograph stripping, debug logs, trace logs, and prompt I/O logs.
+| 设置 | 默认 | 含义 |
+| --- | --- | --- |
+| 原文保留区 | 22k（前缀缓存 20k） | 逐字保留并发送给模型的近期聊天 |
+| 待摘要区 | 6k（前缀缓存 16k） | 等待摘要的较旧原文；两者填满才触发自动摘要 |
+| 记忆注入 | 10k | 注入主提示词的记忆块上限 |
+| 模型上下文 | 48k | 摘要模型容量；据此自动推导批大小 |
+| 每次调用最大来源 | 24k | 单次第 0 层调用发送的原文聊天硬上限 |
+| 每次调用目标来源 | 16k | 每个第 0 层分区偏好的原文大小 |
+| 每批最少/最多回合 | 3 / 8 | 控制摘要批次的就绪条件与上限 |
+| 每层记忆上限 | 24 | 超过后触发向更深层提升 |
+| 每次合并记忆数 | 3 | 单次深层合并的摘要条数 |
 
-Macro Only is useful when your prompt already has a deliberate memory slot. Add `{{summaryception_memory}}` where you want the assembled memory to appear.
+这些默认值不是“最优参数”，也不保证召回效果。扩展已经内置消息分区、队列和批量控制，不需要再叠加额外的消息分块器。
 
-## Connection routes
+## 八项提示词与自定义草稿
 
-Summaryception can use:
+八项提示词分别是：
 
-- SillyTavern's active main API.
-- SillyTavern Connection Profiles.
+- 第 0 层：系统提示词、用户提示词、修复提示词；
+- 第 1+ 层深层合并：系统提示词、用户提示词、修复提示词；
+- 连续性审计：系统提示词、用户提示词。
 
-There are three routes:
+每项都有三种来源：
 
-- Layer 0 for new raw-chat summaries.
-- Merge for deeper Layer 1+ promotion work.
-- Fallback for retryable failures after the primary route gives up.
+- `zh_longform`：本分支的中文长篇剧情预设，首次安装默认；
+- 上游英文原版：第 0 层/深层合并为 `narrative`，审计为 `continuity`；
+- `custom`：使用该字段文本框中的自定义内容。
 
-OpenAI-compatible local endpoints may need SillyTavern's CORS proxy. Since v20, summarization tasks do not use presets, so it does not matter what your connection is linked to.
+自定义草稿按字段独立保存在酒馆扩展设置的 `promptCustomDrafts` 中，而不是只放在临时变量或 `localStorage` 里。离开 `custom` 时会保存当前文本，切回 `custom` 时恢复；如果该字段没有草稿，则以当前内置文本为起点。
 
-## Continuity Auditor
+- 内置预设文本可能随本分支更新而变化；
+- 想固定自己的文本，请使用 `custom`；
+- 切换预设只影响之后生成的摘要，不会自动重写已有记忆。
 
-Everything above is narrative memory: prose about what happened. The Continuity Auditor is the other half. It is an opt-in background call that audits each finished reply in solo chats and keeps a live game-state: positions, relationship bonds, NPC agendas, secrets. Off by default.
+## 汉字删除（Strip CN）与语言策略
 
-Why bother? Without it, keeping the story straight is the main model's job. It spends its output re-stating who stands where, how the relationship shifted, and which agenda moved, and that bookkeeping crowds out the scene itself. The Auditor does that bookkeeping outside the main model and hands the result back as a compact block, so replies come out shorter and more focused on what is actually happening. The block describes the last audited reply, so it runs one message behind the live chat.
+设置项标签是“删除汉字（仅英文摘要使用）”。
 
-Enable it under Continuity Auditor and give it a fast model. It runs after every reply, so latency matters more than brains here. Connection settings live under Models → Continuity Connections, separate from the summarizer routes: it inherits Layer 0 unless you point it elsewhere, and "Fall back to the Narrative Chain" lets it use the Layer 0 chain as last resort when both Auditor routes fail.
+- 八项提示词中**任意一项**选择中文预设 `zh_longform` 时，汉字删除会被强制关闭并禁用，包括默认未启用的连续性审计预设。
+- 只有八项全部为上游英文原版或 `custom` 时，才可以自行开启汉字删除。
+- 扩展不会自动打开汉字删除。
+- `custom` 文本的语言由用户自行负责，扩展不检测其中是否含中文。
 
-The game-state is four things:
+这项策略是保守互斥：既允许英文摘要删除混入的汉字，也避免中文提示词生成的正常中文被误删。
 
-- Scene and positioning: location, environment, posture, contact points, clothing.
-- Bonds: one per character pair, with Sparks and Grudge. A high enough bond shows a gate: hug, handhold, kiss, intimacy.
-- Agendas: each NPC's current task and step.
-- Notes: short GM remarks, with `[S]` marking secrets some characters do not know.
+## 连续性审计
 
-The Auditor only reads and flags. All the math is done by code, and the result is stored on the audited reply as a checkpoint. The newest checkpoint is the live state.
+连续性审计（Continuity Auditor）默认**关闭**。
 
-### What the model gets
+启用后，单人聊天中每条完成的 AI 回复都会在后台额外发起一次审计调用，维护位置、关系、目标、秘密等连续性状态。它和叙事摘要走不同提示词、不同连接路由；审计状态作为独立的 `<active_continuity>` 块注入，不替代叙事记忆。
 
-The live checkpoint is injected into the chat itself, near the newest messages, as a system block:
+因为每条回复都会多一次请求，延迟和费用都会增加；请按需启用，并给它配置足够快、足够稳定的连接。审计路由可以单独指定，也可以继承第 0 层。
 
-```text
-<active_continuity>
-[SCENE & POSITIONING]
-Location: Old mill - upstairs loft
-Environment: rain against the shutters, one lantern lit
-Physics: Mira sitting on the windowsill, feet off the floor
-Contact: Dave by the door, arms crossed
-Clothing: Mira barefoot, coat still wet
+## 操作、重做与清空
 
-[RELATIONSHIP GATES]
-Mira & Dave: BOND +6 (Sparks: 2, Grudge: 0); Gate: handhold
+- **强制摘要**：立即处理符合条件的积压聊天。
+- **打破复读**：连当前活跃上下文一起摘要，适用于 AI 反复复读时。
+- **停止 / 继续**：暂停或恢复自动摘要。
+- **第 0 层摘要片段**：可以在浏览器中逐条编辑、重做或删除。
+- **更高层记忆（元摘要）**：不能直接逐条重做，只能通过后续合并或清空后重建。
+- **没有一键历史撤销**。重做和删除都会改变当前记忆，操作前建议先导出备份。
+- **清空**只清除本扩展在该聊天中的记忆，并仅恢复本扩展隐藏的消息，**不会删除聊天消息**，也不会恢复手动或其他扩展隐藏的消息。
 
-[SECRETS & ASYMMETRIC KNOWLEDGE]
-[S] Mira never actually lost the key
+## 连接路由
 
-[ACTIVE AGENDAS & THREADS]
-- Mira: find out who paid the mercs (Step 2/5: active)
-- Dave: quiet about the second key
-</active_continuity>
-```
+可以使用酒馆当前的主 API，或已保存的 SillyTavern 连接配置。连接分为：
 
-This is the real renderer's output shape: only non-empty sections appear, secret `[S]` notes get their own section, and ordinary GM notes render under agendas as active threads. Replies that have not been audited yet are covered by the last checkpoint, and the block says so until the Auditor catches up.
+- 第 0 层：新原文摘要与第 0 层重做；
+- 第 1+ 层合并：可选的更强深层合并连接；
+- 备用连接：主路由可重试错误耗尽后才使用；
+- 连续性审计连接：审计专用，可继承第 0 层。
 
-### The green check mark
+备用连接不是并行加速，也不会在主路由正常时抢请求。
 
-Every audited reply gets a green ✓ after the character name in chat. The newest one also shows a ●. That reply holds the live checkpoint the injected block comes from. Swipe or regenerate the last reply and its checkpoint is dropped, so the check vanishes until the new answer gets audited.
+## 宏与斜杠命令
 
-### How it works with narrative memory
+公开接口沿用源码：
 
-The layers summarize the story. The Auditor tracks the state. One knows what happened, the other knows what is true right now, and they share nothing at runtime: separate routes, separate prompt.
+- 宏：`{{summaryception_memory}}`
+- `/sc-status`：显示当前已摘要边界与各层摘要片段数量
+- `/sc-preview`：预览将注入的记忆块
+- `/sc-clear`：清除当前聊天的本扩展记忆，并取消本扩展拥有的消息隐藏
 
-### Preset
+选择“仅宏”记忆位置时，扩展跳过直接注入，只暴露 `{{summaryception_memory}}` 供自定义提示词布局使用。
 
-Try it with [ff_summaryception_5.5.0.json](docs/preset/ff_summaryception_5.5.0.json)
+## 数据保存与导入导出
 
-## Slash commands
+- 扩展设置保存在酒馆扩展设置中；
+- 每聊天的摘要、隐藏归属和连续性检查点保存在聊天元数据中；
+- 消息使用稳定标识跟踪归属，不依赖数组位置；
+- 普通更新或刷新不会清空这些数据；
+- 可以在“记忆”页导出 JSON 备份。
 
-`/sc-status` shows the current summarized boundary and layer counts.
+导入会严格校验记忆结构。若文件不兼容，会提示：
 
-`/sc-preview` prints the memory block that would be injected.
+> 记忆格式不兼容或已损坏；5.x旧版摘要不能直接导入。本次未替换当前记忆。
 
-`/sc-clear` clears Summaryception memory for the current chat and unghosts Summaryception-owned messages.
+这是合法性失败路径：校验失败时不会触碰当前存储。其他失败（例如写入阶段异常）只报告失败，不承诺事务回滚。
 
-## Safety notes
+## 诊断
 
-Summaryception is designed to be non-destructive. Summaries live in chat metadata. Settings live in extension settings. Ghosting ownership is stored as stable message IDs in chat metadata, so the extension can tell its own hidden messages apart from messages you hid yourself.
+高级模式提供调试日志、追踪日志、LLM 输入/输出日志和连续性状态日志。这些日志会写入浏览器控制台，可能包含聊天文本和聊天派生状态；排查完成后请及时关闭。
 
-If something looks off, use Clear or `/sc-clear`. That removes Summaryception's memory and ownership flags for the current chat, then unghosts the messages it owns.
+## 已知限制
 
-## Presets
+- 摘要是**有损压缩**；隐藏的原始聊天仍保留在界面里，但模型不再看到它们。
+- 不保证召回效果，也不保证任何参数组合最优。
+- 连续性审计默认关闭；开启后每条回复都会增加一次调用。
+- 缓存优惠取决于供应商，本扩展不承诺必然省钱。
+- 单项 Token 预算不是整次请求硬上限。
+- 高层记忆没有直接重做或一键历史撤销。
+- 本次按用户要求**未运行测试、语法检查、lint、typecheck、格式化、浏览器验证或模型试调用**；以上行为说明来自源码审阅，不宣称实机验证通过。
 
-For default and prefix cache any preset works. I like this one https://rentry.org/freaky-frankenstein-presets
+## 维护与 CI
 
-## Version history
+上游同步、合并步骤和必须人工复核的项目见 [UPSTREAM.md](UPSTREAM.md)。
 
-Older major versions are still available as branches. Open SillyTavern's extension list and use the branch button beside Summaryception.
+仓库保留上游测试代码，但本次没有运行。测试和 CI 只应在用户另行授权后手动执行。`.github/workflows/lint.yml` 仅保留 `workflow_dispatch` 手动触发，本次没有触发，也不存在自动把上游改动覆盖到中文分支的同步工作流。
 
-<img src="img/how_to_switch_branch.png" width="700" alt="Branch button beside Summaryception in SillyTavern's extension list" />
+## 许可
 
-- **v24:** Continuity Auditor. Current stable version. Tested myself in 5+ long RPs
-- **v23:** Closed most github issues
-- **v22:** Big code refactor
-
-## Troubleshooting
-
-### Extension refuses to update
-
-Remove and install it again.
-
-### Major updates can reset settings or misbehave
-
-Clear memories before updating and stick to the named branches.
-
-### Timestamps in bot replies
-
-Make sure each bot message contain timestamps! Exact format is not important. Some gaps are allowed, as long as it repeated once every 4-5 bot messages. Example prompt:
-
-```
-{{// Grounds scene with date, time, location, weather. Affected entire RP.}}{{trim}}
-
-<header_instructions>
-Start every response with:
-[ 🕰️ Time HH:MM AM/PM | 🗓️ Day # - 🗓️ DayOfWeek, Month DD, YYYY Era | 📍 Location - Specific Area | [WeatherEmoji] Weather, Temp °F ]
-
-Rules:
-- Time: Advance logically; execute skips for sleep, work, or travel.
-- Era: Use AD/BC or setting-appropriate fantasy era.
-- Location: General - Specific area. Update on movement.
-- NPCs: Physically react to weather, temp, and time (shiver, sweat, fatigue).
-</header_instructions>
-```
-
-### Low cache hit @ hapuppy
-
-Yep some models like opus46 there has weird caching. Like need to send exact prefix. Just use argoon there, its caching works as real provider
-
-### No thinking @ hapuppy
-
-Use preset FF5.4 or later with forced reasoning. 
-
-## License
-
-AGPL-3.0-or-later. See [LICENSE](LICENSE).
+AGPL-3.0-or-later。详见 [LICENSE](LICENSE)。上游版权、作者署名和 Git 历史均保留。

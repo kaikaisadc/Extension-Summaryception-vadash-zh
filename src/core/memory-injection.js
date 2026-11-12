@@ -153,7 +153,7 @@ async function countLayerParts(chronologyParts) {
     for (const part of chronologyParts || []) {
         const tokens = await countTextTokens(part.text);
         parts.push({
-            label: `Layer ${part.layerIndex}`,
+            label: `第 ${part.layerIndex} 层`,
             kind: part.layerIndex === 0 ? 'layer0' : 'layer',
             layerIndex: part.layerIndex,
             count: tokens.count,
@@ -175,7 +175,7 @@ function buildWrapperPart(total, countedParts) {
         return null;
     }
     return {
-        label: 'Wrapper',
+        label: '包装模板',
         kind: 'wrapper',
         count,
         estimated: total.estimated || countedParts.some((part) => part.estimated),

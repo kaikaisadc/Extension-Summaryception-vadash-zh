@@ -8,7 +8,7 @@ declare module '/script.js' {
 }
 
 interface ChatMessage {
-    sc_id?: string;
+    sc_vadash_zh_id?: string;
     is_user: boolean;
     is_system: boolean;
     is_hidden?: boolean;
@@ -20,7 +20,8 @@ interface ChatMessage {
 }
 
 interface ChatMessageExtra {
-    sc_token_count?: unknown;
+    sc_vadash_zh_token_count?: unknown;
+    summaryception_vadash_zh_continuity?: unknown;
     [key: string]: unknown;
 }
 
@@ -114,22 +115,32 @@ interface ExtensionSettings {
     snippetsPerLayer: number;
     snippetsPerPromotion: number;
     injectionTemplate: string;
+    /** 'zh_longform' | 'narrative' | 'custom' */
     summarizerSystemPromptPreset: string;
     summarizerSystemPrompt: string;
     summarizerUserPrompt: string;
+    /** 'zh_longform' | 'narrative' | 'custom' */
     summarizerRepairPromptPreset: string;
     summarizerRepairPrompt: string;
+    /** 'zh_longform' | 'narrative' | 'custom' */
     promotionSystemPromptPreset: string;
     promotionSystemPrompt: string;
     promotionUserPrompt: string;
+    /** 'zh_longform' | 'narrative' | 'custom' */
     promotionRepairPromptPreset: string;
     promotionRepairPrompt: string;
+    /** 'zh_longform' | 'continuity' | 'custom' */
     auditorSystemPromptPreset: string;
     auditorSystemPrompt: string;
+    /** 'zh_longform' | 'continuity' | 'custom' */
     auditorPromptPreset: string;
     auditorUserPrompt: string;
+    /** 'zh_longform' | 'narrative' | 'custom' */
     promptPreset: string;
+    /** Per-setting custom prompt drafts, keyed by the prompt text setting key. */
+    promptCustomDrafts: Record<string, string>;
     applyRegexScripts: boolean;
+    /** 'zh_longform' | 'narrative' | 'custom' */
     promotionPromptPreset: string;
     hideNonTextMessages: boolean;
     stripChineseIdeographs: boolean;

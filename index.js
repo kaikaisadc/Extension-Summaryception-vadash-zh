@@ -104,7 +104,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
     initSnippetBrowser({ notify, gate, queue, dispatch, usage });
 
     const html = await renderExtensionTemplateAsync(
-        'third-party/Extension-Summaryception',
+        'third-party/Extension-Summaryception-vadash-zh',
         'settings',
         {},
     );

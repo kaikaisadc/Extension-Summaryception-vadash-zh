@@ -27,18 +27,18 @@ export function registerSlashCommands() {
                 callback: () => {
                     const store = getChatStore();
                     const boundary = getCurrentSummarizedBoundary(getChat(), store);
-                    const lines = ['**Summaryception Status**'];
+                    const lines = ['**分层摘要状态**'];
                     lines.push(
-                        boundary < 0 ? 'No summaries.' : `Current summarized boundary: ${boundary}`,
+                        boundary < 0 ? '还没有摘要。' : `当前已摘要边界：${boundary}`,
                     );
                     const nonEmptyLayers = listNonEmptyLayers(store);
                     for (let k = nonEmptyLayers.length - 1; k >= 0; k--) {
                         const { index, layer } = nonEmptyLayers[k];
-                        lines.push(`${layerLabel(index)}: ${layer.length} snippets`);
+                        lines.push(`${layerLabel(index)}：${layer.length} 条摘要片段`);
                     }
                     return lines.join('\n');
                 },
-                helpString: 'Show Summaryception layer status',
+                helpString: '显示分层摘要的层级状态',
             }),
         );
 
@@ -47,9 +47,9 @@ export function registerSlashCommands() {
                 name: 'sc-clear',
                 callback: async () => {
                     await clearChatData();
-                    return 'Summaryception memory cleared and messages unghosted.';
+                    return '分层摘要记忆已清除，本扩展隐藏的消息已恢复。';
                 },
-                helpString: 'Clear all Summaryception memory and unghost messages for this chat',
+                helpString: '清除当前聊天的全部分层摘要记忆，仅恢复本扩展隐藏的消息',
             }),
         );
 
@@ -57,9 +57,9 @@ export function registerSlashCommands() {
             SlashCommand.fromProps({
                 name: 'sc-preview',
                 callback: () => {
-                    return buildInjection(getChatStore().layers).text || '(No summaries yet)';
+                    return buildInjection(getChatStore().layers).text || '(还没有摘要)';
                 },
-                helpString: 'Preview the summary block that would be injected',
+                helpString: '预览将要注入的摘要块',
             }),
         );
     } catch (e) {

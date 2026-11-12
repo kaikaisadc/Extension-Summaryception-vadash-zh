@@ -244,15 +244,15 @@ function resolveRouteTimeoutMs(configuredSeconds, isPromotion) {
  */
 function buildCallLabel(call) {
     if (call.kind === 'layer0') {
-        return `L0 turns ${formatRange(call.sourceRange)}`;
+        return `L0 回合 ${formatRange(call.sourceRange)}`;
     }
     if (call.kind === 'promotion') {
-        return `promotion ${formatPromotionLabel(call)}`;
+        return `深层合并 ${formatPromotionLabel(call)}`;
     }
     if (call.kind === 'regenerate') {
-        return `regenerate turns ${formatRange(call.sourceRange)}`;
+        return `重做回合 ${formatRange(call.sourceRange)}`;
     }
-    return call.kind || 'summarizer';
+    return call.kind || '摘要器';
 }
 
 /**
@@ -442,9 +442,9 @@ function formatRange(range) {
  */
 function formatCount(count, singular) {
     if (typeof count !== 'number' || !Number.isFinite(count)) {
-        return `? ${singular}s`;
+        return `? ${singular}`;
     }
-    return `${count} ${singular}${count === 1 ? '' : 's'}`;
+    return `${count} ${singular}`;
 }
 
 /**
@@ -454,6 +454,6 @@ function formatCount(count, singular) {
 function formatPromotionLabel(call) {
     const sourceLayer = call.layerIndex ?? '?';
     const destLayer = typeof call.layerIndex === 'number' ? call.layerIndex + 1 : '?';
-    const count = formatCount(call.mergedSnippetCount, 'snippet');
-    return `L${sourceLayer} -> L${destLayer} (${count})`;
+    const count = formatCount(call.mergedSnippetCount, '条摘要片段');
+    return `第 ${sourceLayer} 层 → 第 ${destLayer} 层（${count}）`;
 }

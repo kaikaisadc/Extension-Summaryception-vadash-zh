@@ -128,7 +128,16 @@ export function buildStructuralRepairFeedback(diagnostics = {}, sourceBudget = {
  */
 export function countSentences(text) {
     const trimmed = String(text || '').trim();
-    return trimmed ? trimmed.split(/[.!?]+\s+/).filter(Boolean).length : 0;
+    if (!trimmed) {
+        return 0;
+    }
+    // Keep the original English rule: terminal punctuation plus whitespace.
+    // Chinese sentence marks terminate without whitespace, so split on them
+    // directly and trim the resulting segments.
+    return trimmed
+        .split(/(?:[.!?]+\s+)|(?:[。！？]+)/)
+        .map((sentence) => sentence.trim())
+        .filter(Boolean).length;
 }
 
 function normalizeCount(value) {

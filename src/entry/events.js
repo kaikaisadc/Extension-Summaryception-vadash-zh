@@ -401,7 +401,7 @@ async function checkStaleCacheAdvice(queue) {
         if (!advice.advise) {
             return;
         }
-        const adviceKey = `${chat.length}:${advice.queuedTurns}:${chat.at(-1)?.sc_id ?? ''}`;
+        const adviceKey = `${chat.length}:${advice.queuedTurns}:${chat.at(-1)?.sc_vadash_zh_id ?? ''}`;
         if (adviceKey === staleCacheAdviceKey) {
             return;
         }

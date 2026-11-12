@@ -1,4 +1,4 @@
-const SETTINGS_TAB_STORAGE_KEY = 'summaryception.activeSettingsTab';
+const SETTINGS_TAB_STORAGE_KEY = 'summaryception_vadash_zh.activeSettingsTab';
 
 /**
  * Initialize settings tab navigation and start each page load on Status.

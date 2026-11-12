@@ -8,13 +8,21 @@ import {
     DEFAULT_SUMMARIZER_REPAIR_PROMPT,
     DEFAULT_SUMMARIZER_SYSTEM_PROMPT,
     DEFAULT_SUMMARIZER_USER_PROMPT,
+    ZH_LONGFORM_AUDITOR_SYSTEM_PROMPT,
+    ZH_LONGFORM_AUDITOR_USER_PROMPT,
+    ZH_PROMOTION_REPAIR_PROMPT,
+    ZH_PROMOTION_SYSTEM_PROMPT,
+    ZH_PROMOTION_USER_PROMPT,
+    ZH_SUMMARIZER_REPAIR_PROMPT,
+    ZH_SUMMARIZER_SYSTEM_PROMPT,
+    ZH_SUMMARIZER_USER_PROMPT,
 } from './prompt-constants.js';
 
 export { RECALL_REPEAT_INJECTION_TEMPLATE } from './prompt-constants.js';
 
-export const MODULE_NAME = 'summaryception';
+export const MODULE_NAME = 'summaryception_vadash_zh';
 export const LOG_PREFIX = '[Summaryception]';
-export const TOAST_TITLE = 'Summaryception';
+export const TOAST_TITLE = '分层摘要';
 
 /**
  * Stable ghosting progress labels and terminal clear kinds emitted on the
@@ -192,7 +200,7 @@ export const INTERNAL_MAX_LAYER_DEPTH = 20;
  * @returns {string}
  */
 export function layerLabel(index) {
-    return index === 0 ? 'Layer 0 (Turn Summaries)' : `Layer ${index} (Meta-Summary)`;
+    return index === 0 ? '第 0 层（回合摘要）' : `第 ${index} 层（元摘要）`;
 }
 
 /**
@@ -247,29 +255,30 @@ export const defaultSettings = Object.freeze({
     snippetsPerLayer: 24,
     snippetsPerPromotion: 3,
     injectionTemplate: DEFAULT_INJECTION_TEMPLATE,
-    summarizerSystemPrompt: DEFAULT_SUMMARIZER_SYSTEM_PROMPT,
-    summarizerUserPrompt: DEFAULT_SUMMARIZER_USER_PROMPT,
-    summarizerRepairPrompt: DEFAULT_SUMMARIZER_REPAIR_PROMPT,
-    promotionSystemPrompt: DEFAULT_PROMOTION_SYSTEM_PROMPT,
-    promotionUserPrompt: DEFAULT_PROMOTION_USER_PROMPT,
-    promotionRepairPrompt: DEFAULT_PROMOTION_REPAIR_PROMPT,
-    auditorSystemPrompt: DEFAULT_AUDITOR_SYSTEM_PROMPT,
-    auditorUserPrompt: DEFAULT_AUDITOR_USER_PROMPT,
+    summarizerSystemPrompt: ZH_SUMMARIZER_SYSTEM_PROMPT,
+    summarizerUserPrompt: ZH_SUMMARIZER_USER_PROMPT,
+    summarizerRepairPrompt: ZH_SUMMARIZER_REPAIR_PROMPT,
+    promotionSystemPrompt: ZH_PROMOTION_SYSTEM_PROMPT,
+    promotionUserPrompt: ZH_PROMOTION_USER_PROMPT,
+    promotionRepairPrompt: ZH_PROMOTION_REPAIR_PROMPT,
+    auditorSystemPrompt: ZH_LONGFORM_AUDITOR_SYSTEM_PROMPT,
+    auditorUserPrompt: ZH_LONGFORM_AUDITOR_USER_PROMPT,
 
-    summarizerSystemPromptPreset: 'narrative', // 'narrative' | 'custom'
-    promptPreset: 'narrative', // 'narrative' | 'custom'
-    summarizerRepairPromptPreset: 'narrative', // 'narrative' | 'custom'
-    promotionSystemPromptPreset: 'narrative', // 'narrative' | 'custom'
-    promotionPromptPreset: 'narrative', // 'narrative' | 'custom'
-    promotionRepairPromptPreset: 'narrative', // 'narrative' | 'custom'
-    auditorSystemPromptPreset: 'continuity', // 'continuity' | 'custom'
-    auditorPromptPreset: 'continuity', // 'continuity' | 'custom'
+    summarizerSystemPromptPreset: 'zh_longform', // 'zh_longform' | 'narrative' | 'custom'
+    promptPreset: 'zh_longform', // 'zh_longform' | 'narrative' | 'custom'
+    summarizerRepairPromptPreset: 'zh_longform', // 'zh_longform' | 'narrative' | 'custom'
+    promotionSystemPromptPreset: 'zh_longform', // 'zh_longform' | 'narrative' | 'custom'
+    promotionPromptPreset: 'zh_longform', // 'zh_longform' | 'narrative' | 'custom'
+    promotionRepairPromptPreset: 'zh_longform', // 'zh_longform' | 'narrative' | 'custom'
+    auditorSystemPromptPreset: 'zh_longform', // 'zh_longform' | 'continuity' | 'custom'
+    auditorPromptPreset: 'zh_longform', // 'zh_longform' | 'continuity' | 'custom'
+    promptCustomDrafts: {},
     applyRegexScripts: true, // true = apply ST's regex scripts to passage text before summarizing
     // true = also hide text-less messages (images, tool calls) inside the summarized
     // range. They carry no text to summarize, so without this they stay visible to the
     // model and leave gaps in the hidden range that still cost context.
     hideNonTextMessages: true,
-    stripChineseIdeographs: true, // true = strip Han ideographs from summarizer responses
+    stripChineseIdeographs: false, // true = strip Han ideographs from summarizer responses
     maskUserRoleAsAssistant: false, // true = rewrite outgoing user-role request blocks as assistant
     maskUserRoleMode: MASK_USER_ROLE_MODES.MARKER_FIRST,
 
@@ -316,79 +325,147 @@ export const defaultSettings = Object.freeze({
 
 // ─── Prompt Presets ──────────────────────────────────────────────────
 
+/**
+ * The Chinese longform preset is this branch's default. The upstream English
+ * bodies remain complete, selectable presets; `custom` keeps the textarea.
+ */
+export const CHINESE_PROMPT_PRESET = 'zh_longform';
+export const DEFAULT_PROMPT_PRESET = CHINESE_PROMPT_PRESET;
+export const DEFAULT_PROMOTION_PROMPT_PRESET = CHINESE_PROMPT_PRESET;
+
 export const PROMPT_PRESETS = {
-    narrative: defaultSettings.summarizerUserPrompt,
+    [CHINESE_PROMPT_PRESET]: ZH_SUMMARIZER_USER_PROMPT,
+    narrative: DEFAULT_SUMMARIZER_USER_PROMPT,
     custom: null, // Uses whatever is in the textarea
 };
 
 export const SUMMARIZER_SYSTEM_PROMPT_PRESETS = {
-    narrative: defaultSettings.summarizerSystemPrompt,
+    [CHINESE_PROMPT_PRESET]: ZH_SUMMARIZER_SYSTEM_PROMPT,
+    narrative: DEFAULT_SUMMARIZER_SYSTEM_PROMPT,
     custom: null,
 };
 
 export const SUMMARIZER_REPAIR_PROMPT_PRESETS = {
-    narrative: defaultSettings.summarizerRepairPrompt,
+    [CHINESE_PROMPT_PRESET]: ZH_SUMMARIZER_REPAIR_PROMPT,
+    narrative: DEFAULT_SUMMARIZER_REPAIR_PROMPT,
     custom: null,
 };
 
 export const PROMOTION_PROMPT_PRESETS = {
-    narrative: defaultSettings.promotionUserPrompt,
+    [CHINESE_PROMPT_PRESET]: ZH_PROMOTION_USER_PROMPT,
+    narrative: DEFAULT_PROMOTION_USER_PROMPT,
     custom: null, // Uses whatever is in the textarea
 };
 
 export const PROMOTION_SYSTEM_PROMPT_PRESETS = {
-    narrative: defaultSettings.promotionSystemPrompt,
+    [CHINESE_PROMPT_PRESET]: ZH_PROMOTION_SYSTEM_PROMPT,
+    narrative: DEFAULT_PROMOTION_SYSTEM_PROMPT,
     custom: null,
 };
 
 export const PROMOTION_REPAIR_PROMPT_PRESETS = {
-    narrative: defaultSettings.promotionRepairPrompt,
+    [CHINESE_PROMPT_PRESET]: ZH_PROMOTION_REPAIR_PROMPT,
+    narrative: DEFAULT_PROMOTION_REPAIR_PROMPT,
     custom: null,
 };
 
 export const AUDITOR_PROMPT_PRESETS = {
-    continuity: defaultSettings.auditorUserPrompt,
+    [CHINESE_PROMPT_PRESET]: ZH_LONGFORM_AUDITOR_USER_PROMPT,
+    continuity: DEFAULT_AUDITOR_USER_PROMPT,
     custom: null, // Uses whatever is in the textarea
 };
 
 export const AUDITOR_SYSTEM_PROMPT_PRESETS = {
-    continuity: defaultSettings.auditorSystemPrompt,
+    [CHINESE_PROMPT_PRESET]: ZH_LONGFORM_AUDITOR_SYSTEM_PROMPT,
+    continuity: DEFAULT_AUDITOR_SYSTEM_PROMPT,
     custom: null,
 };
 
-export const DEFAULT_PROMPT_PRESET = 'narrative';
-export const DEFAULT_PROMOTION_PROMPT_PRESET = 'narrative';
+/**
+ * The one registry shared by settings reset, read-time normalization, and the
+ * prompt UI. Each field owns its preset key, text key, default preset, and the
+ * complete preset table. No settings/context imports live here, so the module
+ * stays a one-way prompt-string dependency.
+ * @type {ReadonlyArray<{ presetKey: string, settingKey: string, defaultPreset: string, presets: Record<string, string | null> }>}
+ */
+export const PROMPT_DEFINITIONS = Object.freeze([
+    Object.freeze({
+        presetKey: 'summarizerSystemPromptPreset',
+        settingKey: 'summarizerSystemPrompt',
+        defaultPreset: DEFAULT_PROMPT_PRESET,
+        presets: SUMMARIZER_SYSTEM_PROMPT_PRESETS,
+    }),
+    Object.freeze({
+        presetKey: 'promptPreset',
+        settingKey: 'summarizerUserPrompt',
+        defaultPreset: DEFAULT_PROMPT_PRESET,
+        presets: PROMPT_PRESETS,
+    }),
+    Object.freeze({
+        presetKey: 'summarizerRepairPromptPreset',
+        settingKey: 'summarizerRepairPrompt',
+        defaultPreset: DEFAULT_PROMPT_PRESET,
+        presets: SUMMARIZER_REPAIR_PROMPT_PRESETS,
+    }),
+    Object.freeze({
+        presetKey: 'promotionSystemPromptPreset',
+        settingKey: 'promotionSystemPrompt',
+        defaultPreset: DEFAULT_PROMOTION_PROMPT_PRESET,
+        presets: PROMOTION_SYSTEM_PROMPT_PRESETS,
+    }),
+    Object.freeze({
+        presetKey: 'promotionPromptPreset',
+        settingKey: 'promotionUserPrompt',
+        defaultPreset: DEFAULT_PROMOTION_PROMPT_PRESET,
+        presets: PROMOTION_PROMPT_PRESETS,
+    }),
+    Object.freeze({
+        presetKey: 'promotionRepairPromptPreset',
+        settingKey: 'promotionRepairPrompt',
+        defaultPreset: DEFAULT_PROMOTION_PROMPT_PRESET,
+        presets: PROMOTION_REPAIR_PROMPT_PRESETS,
+    }),
+    Object.freeze({
+        presetKey: 'auditorSystemPromptPreset',
+        settingKey: 'auditorSystemPrompt',
+        defaultPreset: DEFAULT_PROMPT_PRESET,
+        presets: AUDITOR_SYSTEM_PROMPT_PRESETS,
+    }),
+    Object.freeze({
+        presetKey: 'auditorPromptPreset',
+        settingKey: 'auditorUserPrompt',
+        defaultPreset: DEFAULT_PROMPT_PRESET,
+        presets: AUDITOR_PROMPT_PRESETS,
+    }),
+]);
 
 /**
  * The eight (presetKey, settingKey) prompt pairs shared by persistence
  * normalization and the prompt UI bindings. Order defines UI field order.
  * @type {ReadonlyArray<{ presetKey: string, settingKey: string }>}
  */
-export const PROMPT_SETTING_KEYS = Object.freeze([
-    Object.freeze({
-        presetKey: 'summarizerSystemPromptPreset',
-        settingKey: 'summarizerSystemPrompt',
-    }),
-    Object.freeze({ presetKey: 'promptPreset', settingKey: 'summarizerUserPrompt' }),
-    Object.freeze({
-        presetKey: 'summarizerRepairPromptPreset',
-        settingKey: 'summarizerRepairPrompt',
-    }),
-    Object.freeze({
-        presetKey: 'promotionSystemPromptPreset',
-        settingKey: 'promotionSystemPrompt',
-    }),
-    Object.freeze({ presetKey: 'promotionPromptPreset', settingKey: 'promotionUserPrompt' }),
-    Object.freeze({
-        presetKey: 'promotionRepairPromptPreset',
-        settingKey: 'promotionRepairPrompt',
-    }),
-    Object.freeze({
-        presetKey: 'auditorSystemPromptPreset',
-        settingKey: 'auditorSystemPrompt',
-    }),
-    Object.freeze({ presetKey: 'auditorPromptPreset', settingKey: 'auditorUserPrompt' }),
-]);
+export const PROMPT_SETTING_KEYS = Object.freeze(
+    PROMPT_DEFINITIONS.map(({ presetKey, settingKey }) =>
+        Object.freeze({ presetKey, settingKey }),
+    ),
+);
+
+/**
+ * One query for the conservative Chinese-preset rule: any of the eight fields
+ * selecting a Chinese preset disables Han-ideograph stripping, even when the
+ * Auditor that owns one of those fields is disabled.
+ * @param {object} settings
+ * @returns {boolean}
+ */
+export function hasChinesePromptPreset(settings) {
+    if (!settings || typeof settings !== 'object') {
+        return false;
+    }
+    const record = /** @type {Record<string, unknown>} */ (settings);
+    return PROMPT_DEFINITIONS.some(
+        ({ presetKey }) => record[presetKey] === CHINESE_PROMPT_PRESET,
+    );
+}
 
 // ─── Retry Configuration ─────────────────────────────────────────────
 

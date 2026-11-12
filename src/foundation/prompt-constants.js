@@ -5,6 +5,16 @@ import {
     EXECUTION_TRIGGER_L0,
     EXECUTION_TRIGGER_PROMO,
 } from './prompt-parts.js';
+import {
+    buildZhAuditorSystemPrompt,
+    buildZhAuditorUserPrompt,
+    ZH_PROMOTION_REPAIR_PROMPT,
+    ZH_PROMOTION_SYSTEM_PROMPT,
+    ZH_PROMOTION_USER_PROMPT,
+    ZH_SUMMARIZER_REPAIR_PROMPT,
+    ZH_SUMMARIZER_SYSTEM_PROMPT,
+    ZH_SUMMARIZER_USER_PROMPT,
+} from './zh-prompts.js';
 
 /**
  * GM-note budget, declared once. The Auditor prompt states these numbers and
@@ -15,6 +25,9 @@ import {
  */
 export const AUDITOR_NOTE_KIND_CAPS = Object.freeze({ R: 4, T: 8, S: 12 });
 export const AUDITOR_NOTE_TOTAL_CAP = 24;
+
+/** The same hard note budget, stated in Chinese for the Chinese Auditor preset. */
+const AUDITOR_NOTE_BUDGET_ZH = `最多 ${AUDITOR_NOTE_KIND_CAPS.R} 条 [R] 提醒、${AUDITOR_NOTE_KIND_CAPS.T} 条 [T] 线脉、${AUDITOR_NOTE_KIND_CAPS.S} 条 [S] 秘密，合计最多 ${AUDITOR_NOTE_TOTAL_CAP} 条`;
 
 /**
  * The budget sentence the Auditor prompt carries, built from the caps so a
@@ -95,8 +108,8 @@ export const PROSE_DATE_FORMAT_RULE =
 
 export const DEFAULT_INJECTION_TEMPLATE =
     '<summaryception_memory>\n' +
-    'Compressed continuity. Newer verbatim chat and the current user message take priority.\n' +
-    "[CHRONOLOGY] = past events, oldest to newest. [X-Y@YYYY-MM-DDTHH] = source messages X-Y; scene time at Y also serves as that passage's reference date; resolve any relative time words (tomorrow, today, in N days, next/bare weekday, this evening) in the adjacent narrative against it.\n" +
+    '压缩后的连续性记忆。较新的原文和当前用户消息优先。\n' +
+    '[CHRONOLOGY] = 按时间从旧到新的历史记忆。[X-Y@YYYY-MM-DDTHH] = 来源消息 X-Y；Y 的场景时间也是该段落的参照时间，邻近叙述中的相对时间词（明天、今天、N 天后、下周或周几、今晚）都要按它换算。时间锚是剧情来源时间，不是现实时间。\n' +
     '{{summary}}\n' +
     '</summaryception_memory>';
 
@@ -321,3 +334,22 @@ Physical gates and intimacy tiers are read-only context; never emit them.`,
     criticalRules: AUDITOR_CRITICAL_RULES,
     triggerLine: EXECUTION_TRIGGER_AUDITOR,
 });
+
+
+// ─── Chinese Longform Presets (this branch's defaults) ───────────────
+
+export const ZH_LONGFORM_AUDITOR_SYSTEM_PROMPT = buildZhAuditorSystemPrompt({
+    noteBudget: AUDITOR_NOTE_BUDGET_ZH,
+});
+export const ZH_LONGFORM_AUDITOR_USER_PROMPT = buildZhAuditorUserPrompt({
+    noteBudget: AUDITOR_NOTE_BUDGET_ZH,
+});
+
+export {
+    ZH_PROMOTION_REPAIR_PROMPT,
+    ZH_PROMOTION_SYSTEM_PROMPT,
+    ZH_PROMOTION_USER_PROMPT,
+    ZH_SUMMARIZER_REPAIR_PROMPT,
+    ZH_SUMMARIZER_SYSTEM_PROMPT,
+    ZH_SUMMARIZER_USER_PROMPT,
+};

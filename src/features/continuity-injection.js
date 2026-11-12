@@ -4,7 +4,7 @@ import { EXTENSION_PROMPT_POSITIONS, EXTENSION_PROMPT_ROLES } from '../foundatio
 import { trace, warn } from '../foundation/logger.js';
 import { getEffectiveSettings } from '../foundation/settings.js';
 
-const CONTINUITY_INJECTION_SLOT = 'summaryception_continuity';
+const CONTINUITY_INJECTION_SLOT = 'summaryception_vadash_zh_continuity';
 
 /**
  * Derived-staleness marker for an un-audited tail. The marker carries the real

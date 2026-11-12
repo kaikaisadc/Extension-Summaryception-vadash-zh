@@ -1,4 +1,4 @@
-import { SLIDER_LIMITS } from '../foundation/constants.js';
+import { SLIDER_LIMITS, hasChinesePromptPreset } from '../foundation/constants.js';
 import { clampToStep } from '../foundation/numeric.js';
 import { getSettings, saveSettings } from '../foundation/settings.js';
 import { formatCompactTokenCount } from '../core/token-count.js';
@@ -321,6 +321,25 @@ function parseSliderInputValue(value, { min, step }) {
 export function syncRoleMaskModeControl(enabled) {
     $('#sc_mask_user_role_mode_row').toggle(enabled);
     $('#sc_mask_user_role_mode').prop('disabled', !enabled);
+}
+
+/**
+ * Reflect the conservative Chinese-preset rule on the strip-Han control.
+ * Normalization already forces the stored value false when any of the eight
+ * prompt fields selects a Chinese preset, including the disabled Auditor.
+ * @param {ReturnType<typeof getSettings>} [settings]
+ * @returns {void}
+ */
+export function syncStripChineseIdeographControl(settings = getSettings()) {
+    const chinesePresetActive = hasChinesePromptPreset(settings);
+    const $toggle = $('#sc_strip_chinese_ideographs');
+    $toggle.prop('disabled', chinesePresetActive);
+    $toggle.prop('checked', chinesePresetActive ? false : Boolean(settings.stripChineseIdeographs));
+    $('#sc_strip_chinese_ideographs_hint').text(
+        chinesePresetActive
+            ? '中文提示词预设已启用（包括默认关闭的审计预设），不能删除汉字。需把 8 项提示词全部切换为上游英文原版或自定义后才能自行开启。'
+            : '当前 8 项都不是中文预设。是否删除汉字由你决定；自定义文本里的中文由你自行负责。',
+    );
 }
 
 /**

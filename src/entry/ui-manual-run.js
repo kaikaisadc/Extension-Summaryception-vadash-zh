@@ -31,7 +31,7 @@ function cancelManualRun(controller) {
     manualRunnerDeps.queue.stop();
 }
 
-const MANUAL_RUN_BUSY_HTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Working...</span>';
+const MANUAL_RUN_BUSY_HTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>处理中...</span>';
 
 /**
  * Shared manual-run driver for both strategies. `run` receives the engine
@@ -63,7 +63,7 @@ async function runManualSummarization($button, idleHtml, { run, notify, view }) 
         outcome = await run(options);
     } catch (err) {
         error(err);
-        toastr.error('Summarization failed - check console.', TOAST_TITLE, {
+        toastr.error('摘要失败，请查看控制台。', TOAST_TITLE, {
             timeOut: 8000,
         });
         return;
@@ -88,7 +88,7 @@ async function runManualSummarization($button, idleHtml, { run, notify, view }) 
  */
 function guardManualRun(s) {
     if (!s.enabled) {
-        toastr.warning('Enable Summaryception first.');
+        toastr.warning('请先启用分层摘要。');
         return false;
     }
     if (manualRunnerDeps.queue.isBusy()) {
@@ -112,7 +112,7 @@ async function executeForceSummarize($button, notify) {
     }
     await runManualSummarization(
         $button,
-        '<i class="fa-solid fa-bolt"></i><span>Force Summarize</span>',
+        '<i class="fa-solid fa-bolt"></i><span>强制摘要</span>',
         {
             run: async (options) => {
                 const preview = await describeManualRun(ELASTIC_STRATEGIES.FORCE);
@@ -120,7 +120,7 @@ async function executeForceSummarize($button, notify) {
                     showManualRunIdle(ELASTIC_STRATEGIES.FORCE);
                     return;
                 }
-                toastr.info(`${preview.backlog} turns ready to process. Starting...`, TOAST_TITLE, {
+                toastr.info(`有 ${preview.backlog} 个回合可处理，开始执行……`, TOAST_TITLE, {
                     timeOut: 2000,
                 });
 
@@ -155,7 +155,7 @@ async function onSlopBreaker(buttonEl, notify) {
 
     await runManualSummarization(
         $(buttonEl),
-        '<i class="fa-solid fa-broom"></i><span>Slop Breaker</span>',
+        '<i class="fa-solid fa-broom"></i><span>打破复读</span>',
         {
             run: (options) => runManual(manualRunnerDeps, ELASTIC_STRATEGIES.SLOP, options),
             notify,
@@ -169,7 +169,7 @@ function showManualCacheWarning(settings) {
         return;
     }
     toastr.info(
-        'Manual summarization updates memory immediately and may reset cache savings for the next request.',
+        '手动摘要会立即更新记忆，并可能让下一次请求失去缓存优惠。',
         TOAST_TITLE,
         { timeOut: 5000 },
     );
@@ -203,14 +203,14 @@ export function reloadPage() {
 async function onStopSummarize() {
     const status = await pauseAutoSummarization(manualRunnerDeps);
     if (status === 'already-paused') {
-        toastr.info('Already paused.', TOAST_TITLE);
+        toastr.info('已处于暂停状态。', TOAST_TITLE);
         return;
     }
     if (status === 'idle') {
-        toastr.info('Nothing is running.', TOAST_TITLE);
+        toastr.info('当前没有正在运行的任务。', TOAST_TITLE);
         return;
     }
-    toastr.warning('Summarization paused. Progress saved. Press Resume to continue.', TOAST_TITLE, {
+    toastr.warning('摘要已暂停，进度已保存。按“继续”恢复。', TOAST_TITLE, {
         timeOut: 5000,
     });
     $(this).prop('disabled', true);
@@ -225,10 +225,10 @@ async function onStopSummarize() {
 async function onResumeSummarize() {
     const status = await resumeAutoSummarization(manualRunnerDeps);
     if (status === 'not-paused') {
-        toastr.info('Not paused.', TOAST_TITLE);
+        toastr.info('当前未暂停。', TOAST_TITLE);
         return;
     }
-    toastr.success('Resumed. Automatic summarization is active again.', TOAST_TITLE, {
+    toastr.success('已继续，自动摘要重新生效。', TOAST_TITLE, {
         timeOut: 3000,
     });
     refreshUi();

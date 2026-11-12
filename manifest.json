@@ -1,12 +1,12 @@
 {
-    "display_name": "Summaryception",
+    "display_name": "分层摘要 · 中文版",
     "loading_order": 50,
     "requires": [],
     "optional": [],
     "js": "index.js",
     "css": "style.css",
-    "author": "Lodactio",
-    "version": "24.29.0",
-    "homePage": "https://github.com/Lodactio/Extension-Summaryception",
+    "author": "Lodactio (original author), kaikaisadc (Chinese maintainer)",
+    "version": "24.29.1",
+    "homePage": "https://github.com/kaikaisadc/Extension-Summaryception-vadash-zh",
     "auto_update": true
 }

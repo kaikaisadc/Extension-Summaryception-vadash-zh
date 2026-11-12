@@ -8,8 +8,8 @@ import {
 } from '../foundation/constants.js';
 
 const IDLE_MESSAGES = {
-    [ELASTIC_STRATEGIES.FORCE]: 'Nothing eligible to summarize.',
-    [ELASTIC_STRATEGIES.SLOP]: 'Nothing to reset yet. Wait for an AI reply first.',
+    [ELASTIC_STRATEGIES.FORCE]: '没有可摘要的内容。',
+    [ELASTIC_STRATEGIES.SLOP]: '暂时没有可重置的内容。请先等待一条 AI 回复。',
 };
 
 /**
@@ -25,14 +25,14 @@ export function showManualRunIdle(strategy) {
  * @returns {void}
  */
 export function showBusySummaryToast() {
-    toastr.warning('Already summarizing. Please wait.', TOAST_TITLE);
+    toastr.warning('已在摘要中，请稍候。', TOAST_TITLE);
 }
 
 /**
  * @returns {void}
  */
 export function showForegroundActiveToast() {
-    toastr.warning('Foreground generation is active. Try again once it completes.', TOAST_TITLE);
+    toastr.warning('前台生成正在进行，请完成后再试。', TOAST_TITLE);
 }
 
 /**
@@ -48,37 +48,37 @@ const CATCHUP_NOTICES = {
             return;
         }
         toastr.warning(
-            `Catch-up paused at ${outcome.completed}/${outcome.totalBatches}. Try again after generation finishes.`,
+            `补摘要已暂停于 ${outcome.completed}/${outcome.totalBatches}。请在生成结束后再试。`,
             TOAST_TITLE,
             { timeOut: 5000 },
         );
     },
     aborted: (outcome) =>
         toastr.warning(
-            `Catch-up paused at ${outcome.completed}/${outcome.totalBatches}. Progress saved - will continue on next message.`,
+            `补摘要已暂停于 ${outcome.completed}/${outcome.totalBatches}。进度已保存，下一条消息后继续。`,
             TOAST_TITLE,
             { timeOut: 5000 },
         ),
     failed: () =>
         toastr.error(
-            '3 consecutive failures - API may be down. Pausing catch-up. Progress saved; will resume on next message.',
+            '连续失败 3 次，API 可能不可用。已暂停补摘要，进度已保存，下一条消息后继续。',
             TOAST_TITLE,
             { timeOut: 8000 },
         ),
     completed: (outcome) =>
-        toastr.success(`Catch-up complete! ${outcome.completed} batches processed.`, TOAST_TITLE, {
+        toastr.success(`补摘要完成！共处理 ${outcome.completed} 个批次。`, TOAST_TITLE, {
             timeOut: 4000,
         }),
     partial: (outcome) =>
         toastr.warning(
-            `Catch-up finished. ${outcome.completed} succeeded, ${outcome.failed} failed (will retry on next trigger).`,
+            `补摘要结束。成功 ${outcome.completed} 个，失败 ${outcome.failed} 个（下次触发时重试）。`,
             TOAST_TITLE,
             { timeOut: 6000 },
         ),
 };
 
 const SLOP_STOPPED_NOTICE =
-    'Slop Breaker stopped. Partial progress was saved, but the intended cut was not completed.';
+    '打破复读已停止。部分进度已保存，但预期的截断未完成。';
 
 /**
  * A Slop Breaker that committed nothing reports failure; one that committed
@@ -87,14 +87,14 @@ const SLOP_STOPPED_NOTICE =
  */
 function showSlopIncomplete(outcome) {
     if (outcome.completed === 0) {
-        toastr.error('Slop Breaker failed. No new cut was completed.', TOAST_TITLE, {
+        toastr.error('打破复读失败，未完成新的截断。', TOAST_TITLE, {
             timeOut: 6000,
         });
         return;
     }
     toastr.warning(
-        `Slop Breaker paused after ${outcome.completed} batch${outcome.completed === 1 ? '' : 'es'}. ` +
-            `${outcome.failed} failed; the intended cut was not completed.`,
+        `打破复读在 ${outcome.completed} 个批次后暂停。` +
+            `${outcome.failed} 个失败；预期的截断未完成。`,
         TOAST_TITLE,
         { timeOut: 6000 },
     );
@@ -104,7 +104,7 @@ function showSlopIncomplete(outcome) {
 const SLOP_NOTICES = {
     idle: () => showManualRunIdle(ELASTIC_STRATEGIES.SLOP),
     completed: () =>
-        toastr.success('Slop Breaker complete. Reloading chat context.', TOAST_TITLE, {
+        toastr.success('打破复读完成，正在重新加载聊天上下文。', TOAST_TITLE, {
             timeOut: 3000,
         }),
     blocked: (outcome) => {
@@ -116,7 +116,7 @@ const SLOP_NOTICES = {
     },
     aborted: (outcome) => {
         if (outcome.completed === 0) {
-            toastr.warning('Slop Breaker stopped. No new cut was completed.', TOAST_TITLE, {
+            toastr.warning('打破复读已停止，未完成新的截断。', TOAST_TITLE, {
                 timeOut: 5000,
             });
             return;
@@ -143,13 +143,13 @@ const SLOP_NOTICES = {
 /** @type {Record<string, ManualRunView>} */
 const MANUAL_RUN_VIEWS = {
     [ELASTIC_STRATEGIES.FORCE]: {
-        label: 'Processing',
-        title: 'Summaryception Catch-Up',
+        label: '处理中',
+        title: '分层摘要补摘要',
         notices: CATCHUP_NOTICES,
     },
     [ELASTIC_STRATEGIES.SLOP]: {
-        label: 'Breaking slop',
-        title: 'Summaryception Slop Breaker',
+        label: '正在打破复读',
+        title: '分层摘要打破复读',
         notices: SLOP_NOTICES,
     },
 };
@@ -187,7 +187,7 @@ export function createManualProgressToast(progress, view, onCancel) {
 export function updateManualProgressToast(progressToast, progress, view) {
     $(progressToast)
         .find('.toast-message')
-        .text(`${getProgressText(progress, view.label)}\nClick x to pause`);
+        .text(`${getProgressText(progress, view.label)}\n点击 x 暂停`);
 }
 
 /**
@@ -208,12 +208,12 @@ export function clearManualProgressToast(progressToast) {
  */
 export function showStaleCacheAdvice(advice) {
     return toastr.info(
-        `The provider cache is stale: the last turn is ${advice.staleMinutes} minutes old and your cache TTL is ${advice.ttlMinutes} minutes. ` +
-            `About ${advice.queuedTurns} turns wait in the summarize queue. ` +
-            'Summarize now and your next message pays full input price once, on a smaller prompt. Send a message first, and you pay full price twice.' +
+        `供应商缓存已过期：最后一轮距今 ${advice.staleMinutes} 分钟，缓存有效期为 ${advice.ttlMinutes} 分钟。` +
+            `约 ${advice.queuedTurns} 个回合正在等待摘要。` +
+            '现在摘要，下一条消息只需在更小的提示词上支付一次完整输入价格；先发消息则会支付两次完整价格。' +
             '<br><button id="sc_stale_cache_force" class="menu_button" style="margin-top: 8px;">' +
-            '<i class="fa-solid fa-bolt"></i> Force Summarize now</button>',
-        'Summaryception — Stale Cache',
+            '<i class="fa-solid fa-bolt"></i> 立即强制摘要</button>',
+        '分层摘要 — 缓存过期',
         {
             timeOut: 60000,
             extendedTimeOut: 60000,
@@ -233,21 +233,21 @@ export function confirmSlopBreaker() {
             .html(
                 `
         <div class="sc-catchup-modal">
-        <h3>Run Slop Breaker?</h3>
+        <h3>运行打破复读？</h3>
         <div class="sc-catchup-dialog">
-        <p>This summarizes the current live conversation context, including messages normally kept verbatim. Use it when the AI is stuck repeating phrases, formats, or corrections. If the latest message is an AI reply, it will be committed into memory and may no longer be safe to swipe or regenerate.</p>
+        <p>这会摘要当前活跃的对话上下文，包括通常保留为原文的消息。适用于 AI 反复复读短语、格式或纠错时。如果最新消息是 AI 回复，它会被提交进记忆，之后可能不再适合滑动重掷或重新生成。</p>
         <hr>
         <div class="sc-catchup-options">
         <button id="sc_slop_breaker_confirm" class="menu_button">
         <i class="fa-solid fa-broom"></i>
         <div class="sc-btn-text">
-        <span class="sc-btn-label">Break Slop</span>
+        <span class="sc-btn-label">打破复读</span>
         </div>
         </button>
         <button id="sc_slop_breaker_cancel" class="menu_button">
         <i class="fa-solid fa-xmark"></i>
         <div class="sc-btn-text">
-        <span class="sc-btn-label">Cancel</span>
+        <span class="sc-btn-label">取消</span>
         </div>
         </button>
         </div>
@@ -285,10 +285,10 @@ export function confirmSlopBreaker() {
  * @type {Record<string, ProgressView>}
  */
 const NOTIFY_PROGRESS_VIEWS = {
-    [GHOST_PROGRESS.HIDE]: { subtitle: 'Ghosting', text: 'Hiding messages', everyN: 1 },
-    [GHOST_PROGRESS.UNHIDE]: { subtitle: 'Clearing', text: 'Unhiding messages', everyN: 10 },
+    [GHOST_PROGRESS.HIDE]: { subtitle: '隐藏消息', text: '正在隐藏消息', everyN: 1 },
+    [GHOST_PROGRESS.UNHIDE]: { subtitle: '取消隐藏', text: '正在取消隐藏消息', everyN: 10 },
     [BATCH_PROGRESS.MEMORY]: {
-        message: 'Updating conversation memory…',
+        message: '正在更新对话记忆…',
         progressBar: true,
         tracksForegroundPause: true,
     },
@@ -297,7 +297,7 @@ const NOTIFY_PROGRESS_VIEWS = {
 /**
  * @type {ProgressView}
  */
-const DEFAULT_PROGRESS_VIEW = { subtitle: 'Working', text: 'Working', everyN: 1 };
+const DEFAULT_PROGRESS_VIEW = { subtitle: '处理中', text: '处理中', everyN: 1 };
 
 /**
  * Terminal notices render right after the progress toast closes (ADR-0019).
@@ -306,13 +306,13 @@ const DEFAULT_PROGRESS_VIEW = { subtitle: 'Working', text: 'Working', everyN: 1 
  */
 const NOTIFY_TERMINAL_VIEWS = {
     [BATCH_PROGRESS.UPDATED]: () =>
-        toastr.success('Conversation memory updated.', TOAST_TITLE, { timeOut: 3000 }),
+        toastr.success('对话记忆已更新。', TOAST_TITLE, { timeOut: 3000 }),
     [BATCH_PROGRESS.ABORTED]: () =>
-        toastr.warning('Conversation memory update stopped.', TOAST_TITLE, { timeOut: 3000 }),
+        toastr.warning('对话记忆更新已停止。', TOAST_TITLE, { timeOut: 3000 }),
     [BATCH_PROGRESS.FAILED]: () =>
-        toastr.warning('Conversation memory was not updated.', TOAST_TITLE, { timeOut: 3000 }),
+        toastr.warning('对话记忆未更新。', TOAST_TITLE, { timeOut: 3000 }),
     [GHOST_PROGRESS.UNHIDDEN]: () =>
-        toastr.success('Chat restored.', TOAST_TITLE, { timeOut: 3000 }),
+        toastr.success('聊天已恢复。', TOAST_TITLE, { timeOut: 3000 }),
 };
 
 /**
@@ -329,44 +329,44 @@ const RETRY_NOTICE_MS = 5000;
  */
 const NOTIFY_TRANSIENT_VIEWS = {
     [NOTIFY_EVENTS.RUN_ABORTED]: () =>
-        toastr.warning('Summarization stopped.', TOAST_TITLE, { timeOut: 3000 }),
+        toastr.warning('摘要已停止。', TOAST_TITLE, { timeOut: 3000 }),
     [NOTIFY_EVENTS.RUN_FAILED]: (event) =>
         toastr.error(
-            `Summarization failed` +
-                `${event.retriesExhausted ? ` after ${event.attempts} attempts` : ''}` +
-                `${event.status ? ` (${event.status})` : ''}. Batch skipped; will retry on next trigger.`,
+            `摘要失败` +
+                `${event.retriesExhausted ? `，已尝试 ${event.attempts} 次` : ''}` +
+                `${event.status ? `（${event.status}）` : ''}。已跳过该批次，下次触发时重试。`,
             TOAST_TITLE,
             { timeOut: 8000 },
         ),
     [NOTIFY_EVENTS.EASY_GUARD_BLOCKED]: (event) =>
         toastr.error(
-            `Easy mode blocked ${event.label}: summarizer request is ` +
-                `${formatTokenValue(event.tokens, event.estimated)} tokens, above the ` +
-                `${formatTokenValue(event.limit)} Easy Summarizer Context cap. ` +
-                'Raise the Easy context slider or switch to Advanced.',
+            `简易模式阻止了${event.label}：摘要请求为 ` +
+                `${formatTokenValue(event.tokens, event.estimated)} Token，超过简易摘要器上下文上限 ` +
+                `${formatTokenValue(event.limit)}。` +
+                '请调高简易上下文滑块或切换到高级模式。',
             TOAST_TITLE,
             { timeOut: 10000 },
         ),
     [NOTIFY_EVENTS.RETRY_WAIT]: (event) =>
         toastr.warning(
-            `Summarizer request failed. Retrying (attempt ${(event.attempt ?? 0) + 1} of ${event.maxRetries ?? 0})...`,
+            `摘要请求失败，正在重试（第 ${(event.attempt ?? 0) + 1} 次，共 ${event.maxRetries ?? 0} 次）……`,
             TOAST_TITLE,
             { timeOut: RETRY_NOTICE_MS },
         ),
     [NOTIFY_EVENTS.ROUTE_CYCLE_WAIT]: () =>
-        toastr.warning('Both summarizer routes failed. Retrying primary...', TOAST_TITLE, {
+        toastr.warning('两条摘要路由均失败，正在重试主路由……', TOAST_TITLE, {
             timeOut: RETRY_NOTICE_MS,
         }),
     [NOTIFY_EVENTS.LANGUAGE_MIX_RETRY]: (event) =>
         toastr.warning(
-            `Summarizer response contained too much CN text (${event.percent ?? '?'}%). Retrying...`,
+            `摘要回复包含过多中文文本（${event.percent ?? '?'}%），正在重试……`,
             TOAST_TITLE,
             { timeOut: RETRY_NOTICE_MS },
         ),
     [NOTIFY_EVENTS.PROMOTION_STARTED]: (event) =>
         toastr.info(
-            `Promoting ${event.mergedCount} memories: Layer ${event.fromLayer} -> ` +
-                `Layer ${event.toLayer}`,
+            `正在提升 ${event.mergedCount} 条记忆：第 ${event.fromLayer} 层 → ` +
+                `第 ${event.toLayer} 层`,
             TOAST_TITLE,
             { timeOut: 3000, progressBar: true },
         ),
@@ -382,7 +382,7 @@ const NOTIFY_TRANSIENT_VIEWS = {
 /** Open "Updating conversation memory" toast element, kept for the pause reword. */
 let activeMemoryToast = null;
 
-const MEMORY_PAUSED_MESSAGE = 'Paused while you chat; memory updates after your reply.';
+const MEMORY_PAUSED_MESSAGE = '聊天时暂停，收到你的回复后更新记忆。';
 
 /**
  * @returns {void}
@@ -465,6 +465,6 @@ export function createToastrNotifyAdapter() {
  */
 function getProgressText(progress, label) {
     const pct = Math.round((progress.completed / progress.totalBatches) * 100);
-    const failStr = progress.failed > 0 ? ` | ${progress.failed} failed` : '';
-    return `${label}: ${progress.completed} / ${progress.totalBatches} batches (${pct}%)${failStr}`;
+    const failStr = progress.failed > 0 ? ` | ${progress.failed} 个失败` : '';
+    return `${label}：${progress.completed} / ${progress.totalBatches} 个批次（${pct}%）${failStr}`;
 }

@@ -308,10 +308,10 @@ export async function buildPassageFromRangeWithStats(chat, startIdx, endIdx) {
  * @returns {boolean}
  */
 export function isSummaryceptionOwnedMessage(message) {
-    if (typeof message?.sc_id !== 'string') {
+    if (typeof message?.sc_vadash_zh_id !== 'string') {
         return false;
     }
-    return getChatStore().ghostedMessageIds.includes(message.sc_id);
+    return getChatStore().ghostedMessageIds.includes(message.sc_vadash_zh_id);
 }
 
 /**

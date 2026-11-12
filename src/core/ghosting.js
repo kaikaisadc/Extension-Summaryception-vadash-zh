@@ -257,7 +257,7 @@ function messageNeedsGhosting(msg, store) {
         return false;
     }
 
-    const owned = typeof msg.sc_id === 'string' && store.ghostedMessageIds.includes(msg.sc_id);
+    const owned = typeof msg.sc_vadash_zh_id === 'string' && store.ghostedMessageIds.includes(msg.sc_vadash_zh_id);
     return !owned || !isVisuallyHidden(msg);
 }
 
@@ -284,7 +284,7 @@ function isGhostableMessage(msg, store) {
  * @returns {boolean}
  */
 function isUserHidden(msg, store) {
-    const owned = typeof msg.sc_id === 'string' && store.ghostedMessageIds.includes(msg.sc_id);
+    const owned = typeof msg.sc_vadash_zh_id === 'string' && store.ghostedMessageIds.includes(msg.sc_vadash_zh_id);
     return isVisuallyHidden(msg) && !owned;
 }
 
@@ -348,8 +348,8 @@ async function unhideRanges({ chat, store, ranges, progress = null, notify }) {
 function clearGhostedRange(chat, store, range) {
     const ids = new Set();
     for (let i = range[0]; i <= range[1]; i++) {
-        if (typeof chat[i]?.sc_id === 'string') {
-            ids.add(chat[i].sc_id);
+        if (typeof chat[i]?.sc_vadash_zh_id === 'string') {
+            ids.add(chat[i].sc_vadash_zh_id);
         }
     }
     setGhostedMessageIds(

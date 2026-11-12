@@ -50,7 +50,7 @@ export function buildContextBudgetViewModel({
     if (freeCount > 0) {
         segments.push(
             buildBudgetSegment(
-                { label: 'Free Space', kind: 'free', count: freeCount, estimated: false },
+                { label: '剩余空间', kind: 'free', count: freeCount, estimated: false },
                 denominator,
             ),
         );
@@ -91,7 +91,7 @@ export function buildTriggerGaugeModel(work, s) {
         queuedTokens: normalizeBudgetCount(work?.queuedTokens ?? 0),
         queuedEstimated: Boolean(work?.queuedEstimated),
         triggerTokens: normalizeBudgetCount(s.queuedTokenBudget),
-        label: 'Summarize at Recent + Queued',
+        label: '在“近期原文 + 待摘要区”满时摘要',
     };
 }
 
@@ -109,7 +109,7 @@ export function buildEnabledContentModel(mode, { autoPaused = false } = {}) {
     const advanced = mode.complexity === UI_MODES.ADVANCED;
     const paused = Boolean(autoPaused);
     return {
-        modeLabel: off ? 'Off' : advanced ? 'Advanced' : 'Easy',
+        modeLabel: off ? '关闭' : advanced ? '高级' : '简易',
         off,
         easyPanel: !advanced,
         advancedPanel: advanced,

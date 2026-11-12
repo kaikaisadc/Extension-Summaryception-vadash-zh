@@ -136,7 +136,7 @@ async function runAudit(
             });
             return { status: 'aborted' };
         }
-        logAuditCompletion({ priorSnapshot, priorState, turnCount, scId: target.sc_id, audit });
+        logAuditCompletion({ priorSnapshot, priorState, turnCount, scId: target.sc_vadash_zh_id, audit });
         return { status: 'completed' };
     } catch (e) {
         warn('Continuity audit failed:', e);
@@ -261,7 +261,7 @@ function applyAuditResult(prior, audit, turnCount) {
  * @param {SummaryceptionContinuityState | null} completed.priorSnapshot - Cloned prior state, or null when logging is off.
  * @param {SummaryceptionContinuityState} completed.priorState - The committed checkpoint state.
  * @param {number} completed.turnCount - Derived turn number of the audit.
- * @param {string | undefined} completed.scId - sc_id of the audited reply carrying the checkpoint.
+ * @param {string | undefined} completed.scId - Stable message ID of the audited reply carrying the checkpoint.
  * @param {{ notesTruncated: number, recoveryTier: number | null }} completed.audit - The validated audit the commit applied.
  * @returns {void}
  */
@@ -311,7 +311,7 @@ function reportAudit(kind, detail, payload) {
  * @returns {{ length: number, lastScId: string }}
  */
 function captureChatIdentity(chat) {
-    return { length: chat.length, lastScId: String(chat[chat.length - 1]?.sc_id ?? '') };
+    return { length: chat.length, lastScId: String(chat[chat.length - 1]?.sc_vadash_zh_id ?? '') };
 }
 
 /**

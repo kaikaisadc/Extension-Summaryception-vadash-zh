@@ -1,15 +1,7 @@
 import {
-    AUDITOR_PROMPT_PRESETS,
-    AUDITOR_SYSTEM_PROMPT_PRESETS,
     MEMORY_MODE_PRESETS,
     MODULE_NAME,
-    PROMOTION_PROMPT_PRESETS,
-    PROMOTION_REPAIR_PROMPT_PRESETS,
-    PROMOTION_SYSTEM_PROMPT_PRESETS,
-    PROMPT_PRESETS,
-    PROMPT_SETTING_KEYS,
-    SUMMARIZER_REPAIR_PROMPT_PRESETS,
-    SUMMARIZER_SYSTEM_PROMPT_PRESETS,
+    PROMPT_DEFINITIONS,
     defaultSettings,
 } from './constants.js';
 import { getExtensionSettings, saveSettingsDebounced } from './context.js';
@@ -29,8 +21,10 @@ import { readOperationMode, repairOperationMode } from './operation-mode.js';
  */
 export function getSettings() {
     const extensionSettings = getExtensionSettings();
+    let defaultsChanged = false;
     if (!isPlainObject(extensionSettings[MODULE_NAME])) {
         extensionSettings[MODULE_NAME] = structuredClone(defaultSettings);
+        defaultsChanged = true;
     }
     const settings = extensionSettings[MODULE_NAME];
     const settingsRecord = /** @type {Record<string, unknown>} */ (
@@ -43,12 +37,15 @@ export function getSettings() {
     const hadMaskUserRoleMode = Object.hasOwn(settings, 'maskUserRoleMode');
     for (const key of Object.keys(defaultSettings)) {
         if (!Object.hasOwn(settings, key)) {
-            settingsRecord[key] = defaultsRecord[key];
+            // Defaults can carry arrays and the custom-draft object; clone per
+            // settings object so a later mutation cannot leak into defaults.
+            settingsRecord[key] = structuredClone(defaultsRecord[key]);
+            defaultsChanged = true;
         }
     }
     const modeSettingsNormalized = repairOperationMode(settings, { hadUiMode });
     const settingsNormalized = normalizeSettings(settings, { hadMaskUserRoleMode });
-    if (modeSettingsNormalized || settingsNormalized) {
+    if (defaultsChanged || modeSettingsNormalized || settingsNormalized) {
         saveSettingsDebounced();
     }
     return settings;
@@ -74,8 +71,9 @@ export function saveSettings() {
 /**
  * Keys a defaults reset never touches: the selected memory/UI/config modes and
  * the Operation Mode gate they project, every Connection Route setting (all
- * four keys of every route, derived from the route catalogue), and debugMode
- * (re-enabled explicitly after the reset loop).
+ * four keys of every route, derived from the route catalogue), debugMode
+ * (re-enabled explicitly after the reset loop), and the per-field custom prompt
+ * drafts (a reset restores built-in presets but never discards user text).
  * @type {Set<string>}
  */
 const RESET_PRESERVED_KEYS = new Set([
@@ -85,21 +83,13 @@ const RESET_PRESERVED_KEYS = new Set([
     'enabled',
     ...getAllRouteSettingKeys(),
     'debugMode',
+    'promptCustomDrafts',
 ]);
 
-const PROMPT_PRESET_TABLES = Object.freeze({
-    summarizerSystemPromptPreset: SUMMARIZER_SYSTEM_PROMPT_PRESETS,
-    promptPreset: PROMPT_PRESETS,
-    summarizerRepairPromptPreset: SUMMARIZER_REPAIR_PROMPT_PRESETS,
-    promotionSystemPromptPreset: PROMOTION_SYSTEM_PROMPT_PRESETS,
-    promotionPromptPreset: PROMOTION_PROMPT_PRESETS,
-    promotionRepairPromptPreset: PROMOTION_REPAIR_PROMPT_PRESETS,
-    auditorSystemPromptPreset: AUDITOR_SYSTEM_PROMPT_PRESETS,
-    auditorPromptPreset: AUDITOR_PROMPT_PRESETS,
-});
-
 /**
- * Custom preset selections keep their edited text.
+ * Restore every non-custom prompt field to its default built-in preset. A
+ * custom selection and its text stay untouched, and promptCustomDrafts is in
+ * RESET_PRESERVED_KEYS.
  * @param {ExtensionSettings} settings - Settings object mutated in place.
  * @returns {void}
  */
@@ -110,14 +100,14 @@ function resetPromptValues(settings) {
     const settingsRecord = /** @type {Record<string, unknown>} */ (
         /** @type {unknown} */ (settings)
     );
-    for (const { presetKey, settingKey } of PROMPT_SETTING_KEYS) {
+    for (const { presetKey, settingKey, defaultPreset, presets } of PROMPT_DEFINITIONS) {
         if (settingsRecord[presetKey] === 'custom') {
             continue;
         }
-        const defaultPreset = defaultsRecord[presetKey];
+        const defaultText = presets[defaultPreset];
         settingsRecord[presetKey] = defaultPreset;
         settingsRecord[settingKey] =
-            PROMPT_PRESET_TABLES[presetKey][defaultPreset] || defaultsRecord[settingKey];
+            typeof defaultText === 'string' ? defaultText : defaultsRecord[settingKey];
     }
 }
 
@@ -129,14 +119,14 @@ function resetPromptValues(settings) {
 export function resetSettingsToDefaults() {
     const s = getSettings();
     const promptKeys = new Set(
-        PROMPT_SETTING_KEYS.flatMap(({ presetKey, settingKey }) => [presetKey, settingKey]),
+        PROMPT_DEFINITIONS.flatMap(({ presetKey, settingKey }) => [presetKey, settingKey]),
     );
     for (const key of Object.keys(defaultSettings)) {
         if (RESET_PRESERVED_KEYS.has(key) || promptKeys.has(key)) {
             continue;
         }
         const value = defaultSettings[key];
-        s[key] = Array.isArray(value) ? [...value] : value;
+        s[key] = structuredClone(value);
     }
 
     resetPromptValues(s);

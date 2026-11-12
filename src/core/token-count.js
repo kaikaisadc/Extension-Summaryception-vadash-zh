@@ -7,7 +7,7 @@ import { callTokenCountAsync } from '../foundation/context.js';
  * authoritative.
  */
 const APPROX_TEXT_UNITS_PER_TOKEN = 4;
-const MESSAGE_TOKEN_CACHE_KEY = 'sc_token_count';
+const MESSAGE_TOKEN_CACHE_KEY = 'sc_vadash_zh_token_count';
 
 /**
  * @typedef {object} TokenCount
@@ -198,7 +198,7 @@ async function countRenderedLines(rawLine, finalLine) {
  * @returns {MessageTokenStats | null}
  */
 function readMessageTokenCache(message, textLength) {
-    const extra = /** @type {{ sc_token_count?: unknown }} */ (message?.extra || {});
+    const extra = /** @type {{ sc_vadash_zh_token_count?: unknown }} */ (message?.extra || {});
     return normalizeMessageTokenCache(extra[MESSAGE_TOKEN_CACHE_KEY], textLength);
 }
 
@@ -219,7 +219,7 @@ function writeMessageTokenCache(message, stats, textLength) {
         target.extra = {};
     }
 
-    /** @type {{ sc_token_count?: MessageTokenCache }} */ (target.extra)[MESSAGE_TOKEN_CACHE_KEY] =
+    /** @type {{ sc_vadash_zh_token_count?: MessageTokenCache }} */ (target.extra)[MESSAGE_TOKEN_CACHE_KEY] =
         {
             textLength,
             rawTokens: stats.rawTokens,

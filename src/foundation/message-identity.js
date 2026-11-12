@@ -30,11 +30,11 @@ export function ensureMessageScId(message) {
         return null;
     }
     const chatMessage = /** @type {ChatMessage} */ (message);
-    if (typeof chatMessage.sc_id === 'string' && chatMessage.sc_id.trim() !== '') {
-        return chatMessage.sc_id;
+    if (typeof chatMessage.sc_vadash_zh_id === 'string' && chatMessage.sc_vadash_zh_id.trim() !== '') {
+        return chatMessage.sc_vadash_zh_id;
     }
-    chatMessage.sc_id = createUuid();
-    return chatMessage.sc_id;
+    chatMessage.sc_vadash_zh_id = createUuid();
+    return chatMessage.sc_vadash_zh_id;
 }
 
 /**
@@ -47,7 +47,7 @@ export function ensureChatScIds(chat) {
     }
     let changed = false;
     for (const message of chat) {
-        const previousId = message?.sc_id;
+        const previousId = message?.sc_vadash_zh_id;
         const id = ensureMessageScId(message);
         if (id !== null && id !== previousId) {
             changed = true;
@@ -71,8 +71,8 @@ export function removeMessageIdentities(chat) {
         if (!message || typeof message !== 'object') {
             continue;
         }
-        const target = /** @type {{ sc_id?: string }} */ (message);
-        delete target.sc_id;
+        const target = /** @type {{ sc_vadash_zh_id?: string }} */ (message);
+        delete target.sc_vadash_zh_id;
     }
 }
 
@@ -86,7 +86,7 @@ export function getMessageIndexByScId(chat) {
         return indices;
     }
     for (let index = 0; index < chat.length; index++) {
-        const id = chat[index]?.sc_id;
+        const id = chat[index]?.sc_vadash_zh_id;
         if (typeof id === 'string' && id.trim() !== '' && !indices.has(id)) {
             indices.set(id, index);
         }

@@ -388,7 +388,7 @@ function tracePassageTokens(snapshot) {
  */
 async function captureLayer0Snapshot({ chat, store, passageStart, endIdx, contextText }) {
     const ctx = getContext();
-    const sourceMessageIds = chat.slice(passageStart, endIdx + 1).map((message) => message?.sc_id);
+    const sourceMessageIds = chat.slice(passageStart, endIdx + 1).map((message) => message?.sc_vadash_zh_id);
     const stableSourceMessageIds = /** @type {string[]} */ (sourceMessageIds);
     if (
         sourceMessageIds.length !== endIdx - passageStart + 1 ||
