@@ -6,7 +6,7 @@
     "js": "index.js",
     "css": "style.css",
     "author": "Lodactio (original author), kaikaisadc (Chinese maintainer)",
-    "version": "24.29.1",
+    "version": "24.29.2",
     "homePage": "https://github.com/kaikaisadc/Extension-Summaryception-vadash-zh",
     "auto_update": true
 }

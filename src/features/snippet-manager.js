@@ -1,5 +1,5 @@
 import { getChat } from '../foundation/context.js';
-import { resolveScIdsToIndices } from '../foundation/message-identity.js';
+import { getMessageIndexByScId } from '../foundation/message-identity.js';
 import { getChatStore } from '../foundation/chat-store.js';
 import { buildPassageFromRangeWithStats } from '../core/chatutils.js';
 import { buildPassageNameCensus } from '../core/refusal-guard.js';
@@ -213,11 +213,11 @@ function resolveRegenerationTarget(store, chat, position, { queue, includeContex
     if (!snippet) {
         return { status: 'missing' };
     }
-    const indices = Array.isArray(snippet.sourceMessageIds)
-        ? resolveScIdsToIndices(chat, snippet.sourceMessageIds)
-        : [];
+    const messageIndexById = getMessageIndexByScId(chat);
+    const indices = getKnownSourceIndices(messageIndexById, snippet.sourceMessageIds);
     if (
         layerIndex !== 0 ||
+        !indices ||
         indices.length === 0 ||
         indices[indices.length - 1] - indices[0] + 1 !== indices.length
     ) {
@@ -232,9 +232,40 @@ function resolveRegenerationTarget(store, chat, position, { queue, includeContex
         snippet,
         range: /** @type {[number, number]} */ ([indices[0], indices[indices.length - 1]]),
         ...(includeContext
-            ? { context: buildSnippetContext(store, layerIndex, snippetIndex) }
+            ? { context: buildSnippetContext(store, messageIndexById, snippet, indices[0]) }
             : {}),
     };
+}
+
+/**
+ * Resolve stable source identifiers to current chat indices, but only when
+ * every identifier is known. An unknown or missing source cannot be placed on
+ * the chat timeline, so callers exclude the whole snippet. The caller supplies
+ * one chat index map so repeated lookups do not rescan the whole chat.
+ * @param {Map<string, number>} messageIndexById
+ * @param {unknown} ids
+ * @returns {number[] | null}
+ */
+function getKnownSourceIndices(messageIndexById, ids) {
+    if (!Array.isArray(ids) || ids.length === 0) {
+        return null;
+    }
+    const uniqueIds = new Set();
+    for (const id of ids) {
+        if (typeof id !== 'string' || id.trim() === '') {
+            return null;
+        }
+        uniqueIds.add(id);
+    }
+    const indices = [];
+    for (const id of uniqueIds) {
+        const index = messageIndexById.get(id);
+        if (index === undefined) {
+            return null;
+        }
+        indices.push(index);
+    }
+    return indices.sort((a, b) => a - b);
 }
 
 function getSnippetAt(store, layerIndex, snippetIndex) {
@@ -244,35 +275,50 @@ function getSnippetAt(store, layerIndex, snippetIndex) {
     return store.layers[layerIndex]?.[snippetIndex] || null;
 }
 
-function buildSnippetContext(store, excludeLayerIndex, excludeSnippetIndex) {
-    const contextParts = [];
-    for (let i = store.layers.length - 1; i >= 0; i--) {
-        const layer = store.layers[i];
-        if (!layer) {
+/**
+ * Build prior context only from complete snippets whose every stable source
+ * identifier resolves to a chat index strictly before the target's earliest
+ * source. Ordering comes from those resolved chat indices, never from layer or
+ * array position. Mixed, later, and unknown-source snippets are left out, so a
+ * late reveal cannot leak into an early regeneration prompt.
+ * @param {SummaryceptionStore} store
+ * @param {Map<string, number>} messageIndexById - Chat index map shared with the target lookup.
+ * @param {SummaryceptionSnippet} targetSnippet
+ * @param {number} earliestTargetIndex
+ * @returns {string}
+ */
+function buildSnippetContext(store, messageIndexById, targetSnippet, earliestTargetIndex) {
+    const candidates = [];
+    for (let layerIndex = 0; layerIndex < store.layers.length; layerIndex++) {
+        const layer = store.layers[layerIndex];
+        if (!Array.isArray(layer)) {
             continue;
         }
-        collectLayerContext({
-            contextParts,
-            layer,
-            layerIndex: i,
-            excludeLayerIndex,
-            excludeSnippetIndex,
-        });
+        for (let snippetIndex = 0; snippetIndex < layer.length; snippetIndex++) {
+            const snippet = layer[snippetIndex];
+            if (!snippet || snippet === targetSnippet) {
+                continue;
+            }
+            const indices = getKnownSourceIndices(messageIndexById, snippet.sourceMessageIds);
+            if (!indices || indices.length === 0) {
+                continue;
+            }
+            const first = indices[0];
+            const last = indices[indices.length - 1];
+            if (last >= earliestTargetIndex) {
+                continue;
+            }
+            candidates.push({ snippet, first, last });
+        }
     }
+    candidates.sort(
+        (a, b) =>
+            a.first - b.first ||
+            a.last - b.last ||
+            String(a.snippet.text).localeCompare(String(b.snippet.text)),
+    );
+    const contextParts = candidates
+        .map(({ snippet }) => snippet.text)
+        .filter((text) => typeof text === 'string' && text.trim() !== '');
     return contextParts.length > 0 ? contextParts.join(' ') : '(none yet)';
-}
-
-function collectLayerContext({
-    contextParts,
-    layer,
-    layerIndex,
-    excludeLayerIndex,
-    excludeSnippetIndex,
-}) {
-    for (let i = 0; i < layer.length; i++) {
-        if (layerIndex === excludeLayerIndex && i === excludeSnippetIndex) {
-            continue;
-        }
-        contextParts.push(layer[i].text);
-    }
 }

@@ -16,8 +16,6 @@ import { getSourceTokenCount, SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD } from './token
 
 const CHINESE_IDEOGRAPH_REGEX = /\p{Script=Han}/gu;
 const VISIBLE_CHARACTER_REGEX = /\S/gu;
-const MIN_OUTPUT_TOKENS_FOR_SUBSTANTIAL_SOURCE = 30;
-const MIN_OUTPUT_CHARS_FOR_SUBSTANTIAL_SOURCE = 150;
 
 /**
  * Strip reasoning tags, thinking blocks, and other model artifacts
@@ -30,12 +28,6 @@ function cleanSummarizerOutput(raw) {
 
     const s = getEffectiveSettings();
 
-    for (const pattern of s.stripPatterns || []) {
-        while (text.includes(pattern)) {
-            text = text.replace(pattern, '');
-        }
-    }
-
     const blockPatterns = [
         /<\|channel>thought[\s\S]*?<channel\|>/gi,
         /<thinking>[\s\S]*?<\/thinking>/gi,
@@ -46,12 +38,26 @@ function cleanSummarizerOutput(raw) {
         /<inner_monologue>[\s\S]*?<\/inner_monologue>/gi,
     ];
 
+    // Remove complete blocks before the configured marker pass: default
+    // stripPatterns delete the tag strings themselves, which would otherwise
+    // hide a later <thinking>...</thinking> match from the block cleanup.
     for (const regex of blockPatterns) {
         // For <output> tags, keep the content inside
         if (regex.source.includes('output')) {
             text = text.replace(regex, '$1');
         } else {
             text = text.replace(regex, '');
+        }
+    }
+
+    for (const pattern of s.stripPatterns || []) {
+        // A damaged or externally written setting can contain an empty string;
+        // `includes('')` is always true, so skipping it prevents an endless loop.
+        if (typeof pattern !== 'string' || pattern.length === 0) {
+            continue;
+        }
+        while (text.includes(pattern)) {
+            text = text.replace(pattern, '');
         }
     }
 
@@ -92,7 +98,8 @@ function applyChineseOutputPolicy(cleanedResult, profile) {
 /**
  * Validate cleaned summarizer output before it can be committed: the Refusal
  * Guard (declined marker, then the layer0-family envelope, lexical, and
- * passage-shape checks) and the minimum-output rule for substantial sources.
+ * passage-shape checks). Size limits stay in the real-token Layer 0 and
+ * promotion validators; this pass has no whitespace-split proxy threshold.
  * @param {string} text - Cleaned summarizer output
  * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
  * @returns {{ valid: true, error: null } | { valid: false, error: Error & { retryable?: boolean } }}
@@ -112,12 +119,6 @@ export function validateSummarizerOutputIntegrity(text, profile) {
         return rejectIntegrity(policyRejection);
     }
 
-    const sourceTokens = getSourceTokenCount(profile?.provenance);
-    const tooShort = tooShortRejection(output, sourceTokens);
-    if (tooShort) {
-        return rejectIntegrity(tooShort);
-    }
-
     return { valid: true, error: null };
 }
 
@@ -133,22 +134,6 @@ function declinedRejection(output) {
     return declinedReason
         ? `declined the summarization task: ${declinedReason}`
         : 'declined the summarization task';
-}
-
-/**
- * @param {string} output - Cleaned summarizer output
- * @param {number} sourceTokens - Source token count from the call's provenance
- * @returns {string} Empty string when the draft passes, the rejection reason otherwise
- */
-function tooShortRejection(output, sourceTokens) {
-    if (sourceTokens <= SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD || !isOutputTooShortForSource(output)) {
-        return '';
-    }
-    const stats = getApproximateOutputStats(output);
-    return (
-        `output too short for ${sourceTokens} source tokens ` +
-        `(${stats.tokens} tokens, ${stats.characters} characters)`
-    );
 }
 
 /**
@@ -250,22 +235,6 @@ function cleanWhitespace(text) {
 
 function countMatches(text, regex) {
     return text.match(regex)?.length || 0;
-}
-
-function isOutputTooShortForSource(text) {
-    const stats = getApproximateOutputStats(text);
-    return (
-        stats.tokens < MIN_OUTPUT_TOKENS_FOR_SUBSTANTIAL_SOURCE &&
-        stats.characters < MIN_OUTPUT_CHARS_FOR_SUBSTANTIAL_SOURCE
-    );
-}
-
-function getApproximateOutputStats(text) {
-    const source = String(text || '').trim();
-    return {
-        tokens: source ? source.split(/\s+/).filter(Boolean).length : 0,
-        characters: source.length,
-    };
 }
 
 /**

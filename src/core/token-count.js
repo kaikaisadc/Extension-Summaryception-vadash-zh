@@ -1,18 +1,31 @@
 import { callTokenCountAsync } from '../foundation/context.js';
 
 /**
- * Chars per token for the plain-text fallback estimator. The Layer 0
- * size-validation gate and the deterministic state compactor are char-budgeted
- * so they stay synchronized with this ratio, regardless of which tokenizer is
- * authoritative.
+ * Chars per estimated token for the English-only fallback estimator. It is
+ * used only when the active tokenizer is unavailable; the real tokenizer takes
+ * precedence, and Layer 0 validation remains token-based rather than
+ * char-budgeted.
  */
 const APPROX_TEXT_UNITS_PER_TOKEN = 4;
+/**
+ * Fallback-only CJK baseline: two estimated tokens per CJK code point before
+ * the safety margin. This is an unmeasured conservative heuristic, not an
+ * upper bound and not the real ratio of any particular tokenizer.
+ */
+const APPROX_CJK_TOKENS_PER_CHAR = 2;
+/**
+ * Unmeasured safety margin applied to the fallback estimate. It keeps the
+ * budget-side estimate conservative; it is not a measured tokenizer ratio.
+ */
+const APPROX_ESTIMATE_SAFETY_MULTIPLIER = 1.15;
+const CJK_SCRIPT_REGEX =
+    /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu;
 const MESSAGE_TOKEN_CACHE_KEY = 'sc_vadash_zh_token_count';
 
 /**
  * @typedef {object} TokenCount
  * @property {number} count - Token total for the message text
- * @property {boolean} estimated - Whether the count came from the fallback estimator
+ * @property {boolean} estimated - Whether the count came from the conservative fallback estimator
  */
 
 /**
@@ -36,10 +49,6 @@ const MESSAGE_TOKEN_CACHE_KEY = 'sc_vadash_zh_token_count';
 
 /**
  * @typedef {MessageTokenStats & { changed: boolean }} CountedBudgetMessage
- */
-
-/**
- * @typedef {MessageTokenStats & { textLength: number }} MessageTokenCache
  */
 
 /**
@@ -76,6 +85,8 @@ export function addBudgetStats(stats, counted) {
 
 /**
  * Count tokens using SillyTavern's active tokenizer, with a marked fallback.
+ * The fallback is a budget estimate, not a model-exact token count; the next
+ * call retries the real tokenizer, so a temporary failure can recover.
  * @param {string} text - Text to count
  * @returns {Promise<TokenCount>}
  */
@@ -97,22 +108,16 @@ export async function countTextTokens(text) {
 }
 
 /**
- * Count rendered raw/final message lines, reusing a saved message count while valid.
- * @param {ChatMessage} message - Chat message to cache on
+ * Count rendered raw/final message lines. Message-level counts are intentionally
+ * not cached: the host facade exposes no reliable tokenizer/model identity, and
+ * a content or length match cannot prove that a later model switch used the
+ * same tokenizer. Every call retries the real tokenizer before estimating.
  * @param {string} rawLine - Rendered message line before regex scripts
  * @param {string} finalLine - Rendered message line after regex scripts
  * @returns {Promise<MessageTokenStats>}
  */
-export async function countMessageTokens(message, rawLine, finalLine) {
-    const textLength = getMessageTokenCacheLength(rawLine, finalLine);
-    const cached = readMessageTokenCache(message, textLength);
-    if (cached) {
-        return cached;
-    }
-
-    const counted = await countRenderedLines(rawLine, finalLine);
-    writeMessageTokenCache(message, counted, textLength);
-    return counted;
+export async function countMessageTokens(rawLine, finalLine) {
+    return await countRenderedLines(rawLine, finalLine);
 }
 
 /**
@@ -160,7 +165,7 @@ export function formatCompactTokenCount(count) {
 }
 
 /**
- * Count rendered raw/final message lines without cache lookup.
+ * Count rendered raw/final message lines.
  * @param {string} rawLine
  * @param {string} finalLine
  * @returns {Promise<MessageTokenStats>}
@@ -192,98 +197,6 @@ async function countRenderedLines(rawLine, finalLine) {
 }
 
 /**
- * Read a normalized message token cache entry.
- * @param {ChatMessage} message
- * @param {number} textLength
- * @returns {MessageTokenStats | null}
- */
-function readMessageTokenCache(message, textLength) {
-    const extra = /** @type {{ sc_vadash_zh_token_count?: unknown }} */ (message?.extra || {});
-    return normalizeMessageTokenCache(extra[MESSAGE_TOKEN_CACHE_KEY], textLength);
-}
-
-/**
- * Save message token stats with a lightweight source text marker.
- * @param {ChatMessage} message
- * @param {MessageTokenStats} stats
- * @param {number} textLength
- * @returns {void}
- */
-function writeMessageTokenCache(message, stats, textLength) {
-    if (!message || typeof message !== 'object') {
-        return;
-    }
-
-    const target = /** @type {{ extra?: unknown }} */ (message);
-    if (!target.extra || typeof target.extra !== 'object') {
-        target.extra = {};
-    }
-
-    /** @type {{ sc_vadash_zh_token_count?: MessageTokenCache }} */ (target.extra)[MESSAGE_TOKEN_CACHE_KEY] =
-        {
-            textLength,
-            rawTokens: stats.rawTokens,
-            finalTokens: stats.finalTokens,
-            rawTokensEstimated: stats.rawTokensEstimated,
-            finalTokensEstimated: stats.finalTokensEstimated,
-        };
-}
-
-/**
- * @param {unknown} cache
- * @param {number} textLength
- * @returns {MessageTokenStats | null}
- */
-function normalizeMessageTokenCache(cache, textLength) {
-    if (!cache || typeof cache !== 'object') {
-        return null;
-    }
-
-    const record =
-        /** @type {{ textLength?: unknown, rawTokens?: unknown, finalTokens?: unknown, rawTokensEstimated?: unknown, finalTokensEstimated?: unknown }} */ (
-            cache
-        );
-    if (record.textLength !== textLength) {
-        return null;
-    }
-
-    const rawTokens = normalizeCachedTokenCount(record.rawTokens);
-    const finalTokens = normalizeCachedTokenCount(record.finalTokens);
-
-    if (rawTokens === null || finalTokens === null) {
-        return null;
-    }
-
-    return {
-        rawTokens,
-        finalTokens,
-        rawTokensEstimated: record.rawTokensEstimated === true,
-        finalTokensEstimated: record.finalTokensEstimated === true,
-    };
-}
-
-/**
- * Get the rendered text length marker for a token cache entry.
- * @param {string} rawLine
- * @param {string} finalLine
- * @returns {number}
- */
-function getMessageTokenCacheLength(rawLine, finalLine) {
-    return String(rawLine ?? '').length + String(finalLine ?? '').length;
-}
-
-/**
- * @param {unknown} count
- * @returns {number | null}
- */
-function normalizeCachedTokenCount(count) {
-    if (typeof count !== 'number' || !Number.isFinite(count)) {
-        return null;
-    }
-    return Math.max(0, Math.ceil(count));
-}
-
-/**
  * Count with the active host tokenizer. Any failure returns null so the caller
  * falls back to the estimate; token counting never fails a run.
  * @param {string} text - Text to count
@@ -299,7 +212,11 @@ async function countWithActiveTokenizer(text) {
 }
 
 /**
- * Provide a stable fallback when the runtime tokenizer is unavailable.
+ * Provide a conservative fallback when the runtime tokenizer is unavailable.
+ * CJK text assumes two estimated tokens per CJK code point before the safety
+ * margin; Latin text keeps the four-characters-per-token approximation. This
+ * is an unmeasured budgeting heuristic that can overestimate or underestimate;
+ * it is neither an upper bound nor the active model's exact token count.
  * @param {string} text - Text to estimate
  * @returns {number}
  */
@@ -307,7 +224,19 @@ function estimateTokenCount(text) {
     if (!text) {
         return 0;
     }
-    return Math.max(1, Math.ceil(text.length / APPROX_TEXT_UNITS_PER_TOKEN));
+    const cjkCount = text.match(CJK_SCRIPT_REGEX)?.length || 0;
+    if (cjkCount === 0) {
+        return Math.max(1, Math.ceil(text.length / APPROX_TEXT_UNITS_PER_TOKEN));
+    }
+    const nonCjkText = text.replace(CJK_SCRIPT_REGEX, '');
+    const nonCjkTokens = Math.ceil(nonCjkText.length / APPROX_TEXT_UNITS_PER_TOKEN);
+    return Math.max(
+        1,
+        Math.ceil(
+            (cjkCount * APPROX_CJK_TOKENS_PER_CHAR + nonCjkTokens) *
+                APPROX_ESTIMATE_SAFETY_MULTIPLIER,
+        ),
+    );
 }
 
 /**
@@ -322,10 +251,9 @@ function normalizeTokenCount(count) {
 }
 
 /**
- * Drop the cached per-message token counts. The cache self-heals on a text
- * length mismatch, so this is a removal of Extension Chat Data (ADR-0027)
- * rather than a correctness fix; the tokenizer rebuilds each entry on the
- * next count.
+ * Drop the retired per-message token counts. Marked counts are not persisted
+ * any more, so this only removes Extension Chat Data written by older builds;
+ * the next count asks the real tokenizer again.
  * @param {ChatMessage[] | unknown} chat
  * @returns {void}
  */

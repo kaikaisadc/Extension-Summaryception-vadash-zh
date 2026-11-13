@@ -212,6 +212,11 @@ function syncDataSettingElementValue($element, settings, key) {
     if (!(key in settings)) {
         return;
     }
+    // A background render must not clobber the textarea the user is editing
+    // (including an IME composition). Blur syncs it from the execution prompt.
+    if ($element.is('textarea') && $element.is(':focus')) {
+        return;
+    }
     const value = settings[key];
     if ($element.is(':checkbox')) {
         $element.prop('checked', Boolean(value));

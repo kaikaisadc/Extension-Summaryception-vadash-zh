@@ -10,7 +10,7 @@
 | 上游 remote | `upstream` |
 | 完整基线 SHA | `e89dc31d4a4cfaeb04bf39e4fba1b1a9a0d53b6c` |
 | 上游版本 | `24.29.0` |
-| 本中文分支版本 | `24.29.1` |
+| 本中文分支版本 | `24.29.2` |
 | 本仓库 remote | `origin` → `https://github.com/kaikaisadc/Extension-Summaryception-vadash-zh.git` |
 | 许可 | AGPL-3.0-or-later，`LICENSE` 保持原文 |
 
@@ -27,7 +27,7 @@
 | 聊天记忆根 | `chatMetadata['summaryception_vadash_zh']` | `layers`、`ghostedMessageIds`、`mutationEpoch` |
 | 连续性检查点/注入槽 | `src/core/continuity-checkpoint.js`、`src/features/continuity-injection.js` | `summaryception_vadash_zh_continuity` |
 | 消息稳定标识 | `src/foundation/message-identity.js` | 消息字段 `sc_vadash_zh_id` |
-| 单消息 Token 缓存 | `src/core/token-count.js` | `message.extra.sc_vadash_zh_token_count` |
+| 单消息 Token 缓存（已取消） | `src/core/token-count.js` | 旧的 `message.extra.sc_vadash_zh_token_count` 只清理，不再写入 |
 | 设置页标签页会话状态 | `src/entry/ui-tabs.js` | `summaryception_vadash_zh.activeSettingsTab` |
 | 提示词草稿 | `extensionSettings['summaryception_vadash_zh'].promptCustomDrafts` | 按 `settingKey` 存字符串 |
 
@@ -89,6 +89,15 @@
 - 协议格式：`<narrative>`、`current_date_time`、`<declined>reason</declined>`、`<active_continuity>`、审计 JSON 键/布尔字段/pair-key、`[S]` 秘密标记、`{{player_name}}`/`{{context_str}}`/`{{story_txt}}`/`{{summary}}`/`{{summaryception_memory}}` 以及 `EXECUTION_TRIGGER_*` 锚点不得随意改名。
 - 中文 UI：`settings.html` 与 `src/entry/*` 的用户可见文字保持中文；`settings-help-data.js` 的动态说明、`settings-help.js` 的 tooltip、toastr 通知、确认框、命令帮助、状态标签都要随源码复核。
 - 中文术语一致：原文保留区、待摘要区、深层合并、记忆注入、连续性审计、备用连接、Token（不是字数）。
+
+## 24.29.2 新维护点
+
+- 提示词编辑：`input` 期间不得调用归一化后回写 textarea；空白是临时编辑态，不能覆盖 `promptCustomDrafts` 的最后非空文本。IME 组词由 `compositionstart`/`compositionend` 隔离，后台 `syncAllSettingsToDOM` 跳过聚焦 textarea。失焦/切预设再同步执行用提示词。
+- 消息 Token：不要重新引入按文本长度命中的消息级缓存。宿主 facade 没有可靠的 tokenizer/model 身份，消息计数应保守重算；`removeMessageTokenCaches` 只负责清理旧版本写入的 Extension Chat Data。
+- Tokenizer 回退：真实 tokenizer 成功时始终优先使用精确值。失败时的 CJK 回退带安全余量并设置 `estimated`，但这只是预算估算，不是“一个汉字恒等于一个 Token”的模型真值；tokenizer 恢复后必须能重新精确计数。
+- 输出清理：先移除完整思考块，再剥离 `stripPatterns` 中的孤立标记；保留 `<output>` 正文，空字符串 stripPattern 必须跳过以避免死循环。
+- 重做上下文：`prior_context` 只能来自稳定 ID 能映射到当前 chat、且全部来源严格早于目标最早来源的完整片段。混合范围、未知来源和晚于目标的片段必须排除，不能按层号或数组顺序推断时序。
+- 版本文件：`manifest.json`、`package.json`、`package-lock.json` 的版本保持一致。
 
 ## 中文文本维护要点
 

@@ -252,7 +252,7 @@ export async function* countedChatMessages(
         const { rawLine, finalLine, changed } = await renderMessageLines(message, depth, {
             applyRegexScripts: settings.applyRegexScripts,
         });
-        const stats = { ...(await countMessageTokens(message, rawLine, finalLine)), changed };
+        const stats = { ...(await countMessageTokens(rawLine, finalLine)), changed };
         yield { index, message, stats, finalLine };
     }
 }

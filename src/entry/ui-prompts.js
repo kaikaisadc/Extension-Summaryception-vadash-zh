@@ -45,6 +45,10 @@ const PROMPT_FIELDS = PROMPT_DEFINITIONS.map((definition) => ({
     ...PROMPT_FIELD_UI[definition.presetKey],
 }));
 
+// IME composition is field-local. While it is open a browser may deliver
+// intermediate `input` events and the textarea may briefly read as empty.
+const composingFields = new Set();
+
 /**
  * @returns {void}
  */
@@ -74,6 +78,9 @@ function getPromptCustomDrafts(settings) {
  * @returns {void}
  */
 function savePromptCustomDraft(settings, field, text) {
+    if (!String(text ?? '').trim()) {
+        return;
+    }
     getPromptCustomDrafts(settings)[field.settingKey] = text;
 }
 
@@ -81,23 +88,77 @@ function savePromptCustomDraft(settings, field, text) {
  * Persist a selection, then resync the strip-Han control and this field's
  * controls from the normalized settings. Reading through getSettings here is
  * deliberate: it lets the normalizer force strip mode off as soon as a Chinese
- * preset is selected, and repair an empty custom field visibly instead of
- * leaving the textarea and settings out of step.
+ * preset is selected. The textarea is only written when it is not the focused
+ * editor, so a background refresh cannot overwrite an in-progress edit.
  * @param {{ presetSelect: string, textarea: string, presetKey: string, settingKey: string, defaultPreset: string }} field
  * @returns {void}
  */
 function savePromptSelection(field) {
     saveSettings();
     const settings = getSettings();
+    syncPromptFieldControls(field, settings);
+    syncStripChineseIdeographControl(settings);
+}
+
+/**
+ * @param {string} settingKey
+ * @returns {boolean}
+ */
+function isComposing(settingKey) {
+    return composingFields.has(settingKey);
+}
+
+/**
+ * @param {{ textarea: string }} field
+ * @returns {boolean}
+ */
+function isPromptTextareaFocused(field) {
+    return $(field.textarea).is(':focus');
+}
+
+/**
+ * Apply the textarea value to the live execution prompt. Blank text is an
+ * editing state: it neither changes the effective prompt nor replaces the last
+ * non-empty draft. Selecting custom is the only preset change input can make.
+ * @param {{ presetSelect: string, textarea: string, presetKey: string, settingKey: string }} field
+ * @param {string} text
+ * @returns {void}
+ */
+function commitPromptText(field, text) {
+    if (!String(text ?? '').trim()) {
+        return;
+    }
+    const settings = getSettings();
+    settings[field.settingKey] = text;
+    savePromptCustomDraft(settings, field, text);
+    if (settings[field.presetKey] !== 'custom') {
+        settings[field.presetKey] = 'custom';
+        if (!$(field.presetSelect).is(':focus')) {
+            $(field.presetSelect).val('custom');
+        }
+        syncStripChineseIdeographControl(settings);
+    }
+    saveSettings();
+}
+
+/**
+ * Sync the non-editing controls of one prompt field from settings. A focused
+ * textarea keeps its DOM value; the settings object is still the execution
+ * source of truth until blur.
+ * @param {{ presetSelect: string, textarea: string, presetKey: string, settingKey: string, defaultPreset: string }} field
+ * @param {ReturnType<typeof getSettings>} settings
+ * @returns {void}
+ */
+function syncPromptFieldControls(field, settings) {
     const normalizedText = String(settings[field.settingKey] ?? '');
     const normalizedPreset = String(settings[field.presetKey] ?? field.defaultPreset);
-    if (String($(field.textarea).val() ?? '') !== normalizedText) {
+    const currentText = String($(field.textarea).val() ?? '');
+    if (!isPromptTextareaFocused(field) && currentText !== normalizedText) {
         $(field.textarea).val(normalizedText);
     }
     if (String($(field.presetSelect).val() ?? '') !== normalizedPreset) {
         $(field.presetSelect).val(normalizedPreset);
     }
-    syncStripChineseIdeographControl(settings);
 }
 
 function bindPromptPresetSelect(field) {
@@ -134,17 +195,27 @@ function bindPromptPresetSelect(field) {
 }
 
 function bindPromptTextarea(field) {
-    $(document).on('input change', field.textarea, function () {
-        const s = getSettings();
-        const currentText = String($(this).val() ?? '');
-        s[field.settingKey] = currentText;
-        savePromptCustomDraft(s, field, currentText);
+    $(document).on('compositionstart', field.textarea, function () {
+        composingFields.add(field.settingKey);
+    });
 
-        if (s[field.presetKey] !== 'custom') {
-            s[field.presetKey] = 'custom';
-            $(field.presetSelect).val('custom');
+    $(document).on('compositionend', field.textarea, function () {
+        composingFields.delete(field.settingKey);
+        commitPromptText(field, String($(this).val() ?? ''));
+    });
+
+    $(document).on('input', field.textarea, function (event) {
+        if (isComposing(field.settingKey) || event.originalEvent?.isComposing === true) {
+            return;
         }
+        commitPromptText(field, String($(this).val() ?? ''));
+    });
 
+    $(document).on('change blur', field.textarea, function () {
+        if (isComposing(field.settingKey)) {
+            return;
+        }
+        commitPromptText(field, String($(this).val() ?? ''));
         savePromptSelection(field);
     });
 }
