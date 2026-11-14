@@ -56,17 +56,8 @@ function runNpm(label, args) {
 }
 
 runNpm('tsc', ['exec', '--', 'tsc', '--noEmit', '--pretty', 'false']);
-// Auto-format the whole repo and stage anything prettier rewrote.
-// Runs before lint-staged so staged files are already formatted, and
-// before tests so the committed state is canonical. Unsafe on purpose.
-runNpm('format', ['exec', '--', 'prettier', '--write', '.']);
-try {
-    execFileSync('git', ['add', '-A'], { stdio: 'pipe' });
-} catch (error) {
-    console.error('FAIL git-add');
-    console.error(tailOutput(`${error.stdout || ''}${error.stderr || ''}`));
-    process.exit(error.status || 1);
-}
+// lint-staged formats and fixes only the staged files; the hook never rewrites
+// or stages the rest of the working tree.
 runNpm('lint-staged', ['exec', '--', 'lint-staged', '--verbose']);
 runNpm('tests', ['test']);
 

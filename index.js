@@ -8,7 +8,7 @@
  * AGPL-3.0
  */
 
-import { LOG_PREFIX } from './src/foundation/constants.js';
+import { LOG_PREFIX, TOAST_TITLE } from './src/foundation/constants.js';
 import { getChat, getContext, saveChat, saveMetadata } from './src/foundation/context.js';
 import { saveChatStore } from './src/foundation/chat-store.js';
 import { initChatPersistence } from './src/core/persist-state.js';
@@ -49,7 +49,13 @@ import { registerSlashCommands } from './src/entry/commands.js';
     }
 
     // Chat Persistence is the one root-initialized holder (ADR-0031).
-    initChatPersistence({ saveChat, saveMetadata });
+    initChatPersistence({
+        saveChat,
+        saveMetadata,
+        onChatSaveError: () => {
+            toastr.error('聊天保存失败，修改可能尚未落盘，请勿关闭页面。', TOAST_TITLE);
+        },
+    });
     getSettings();
     // The gate's requeue reads the queue lazily; the queue is built next.
     const writer = createMemoryInjectionWriter();

@@ -52,28 +52,46 @@ export function createSummarizerDispatch({ usage }) {
         notify = silentAdapter,
         signal = undefined,
     }) {
-        trace('>>> ENTERING summarizer dispatch call');
-        await traceSummarizerInputTokens(storyTxt, contextStr);
-
-        const settings = getEffectiveSettings();
-        trace('  settings loaded:', {
-            connectionSource: settings.connectionSource,
-            enabled: settings.enabled,
-        });
-
-        const request = await buildSummarizerPipelineInput({
-            storyTxt,
-            contextStr,
-            metadata,
-            settings,
-        });
-
+        // Register before the first await so an abort during preparation can
+        // find this request, and an already-aborted signal never reaches the
+        // runner.
         const controller = new AbortController();
         liveRequests.add(controller);
         const onExternalAbort = () => controller.abort();
-        signal?.addEventListener('abort', onExternalAbort, { once: true });
 
         try {
+            if (signal?.aborted) {
+                controller.abort();
+            } else {
+                signal?.addEventListener('abort', onExternalAbort, { once: true });
+            }
+
+            if (controller.signal.aborted) {
+                return { status: /** @type {'aborted'} */ ('aborted') };
+            }
+
+            trace('>>> ENTERING summarizer dispatch call');
+            await traceSummarizerInputTokens(storyTxt, contextStr);
+            if (controller.signal.aborted) {
+                return { status: /** @type {'aborted'} */ ('aborted') };
+            }
+
+            const settings = getEffectiveSettings();
+            trace('  settings loaded:', {
+                connectionSource: settings.connectionSource,
+                enabled: settings.enabled,
+            });
+
+            const request = await buildSummarizerPipelineInput({
+                storyTxt,
+                contextStr,
+                metadata,
+                settings,
+            });
+            if (controller.signal.aborted) {
+                return { status: /** @type {'aborted'} */ ('aborted') };
+            }
+
             return await requestRunner.run({
                 ...request,
                 signal: controller.signal,

@@ -68,18 +68,17 @@ export async function saveMetadata() {
 }
 
 /**
- * No-op when the runtime lacks saveChat.
+ * No-op only when the runtime lacks the optional saveChat API; a real save
+ * rejection propagates to the caller. Calling through the context preserves
+ * the host method's `this` binding.
  * @returns {Promise<void>}
  */
 export async function saveChat() {
-    try {
-        const fn = getContext().saveChat;
-        if (typeof fn === 'function') {
-            await fn();
-        }
-    } catch (_e) {
-        /* runtime context unavailable */
+    const ctx = getContext();
+    if (typeof ctx.saveChat !== 'function') {
+        return;
     }
+    await ctx.saveChat();
 }
 
 /**

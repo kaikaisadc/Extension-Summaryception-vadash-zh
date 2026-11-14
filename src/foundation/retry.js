@@ -16,6 +16,10 @@ export function sleep(ms) {
  * @returns {Promise<void>} Resolves after the delay or on abort
  */
 export function sleepOrAbort(ms, signal) {
+    if (signal.aborted) {
+        return Promise.resolve();
+    }
+
     return new Promise((resolve) => {
         const onAbort = () => {
             clearTimeout(timer);

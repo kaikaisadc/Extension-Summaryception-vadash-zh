@@ -12,7 +12,8 @@
 ## Commands
 
 - `npm test` runs the suite.
-- The pre-commit hook runs the type gate, formats the whole repo, then stages every change. Keep the tree free of unrelated edits before a commit.
+- The pre-commit hook runs the type gate, then lint-staged on the staged files only, then the tests.
+  It does not format or stage the whole repository. Keep the tree free of unrelated edits before a commit.
 
 ## Documentation
 

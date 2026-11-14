@@ -1,8 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { flushPendingChatSave, persistChatState } from '../src/core/persist-state.js';
+import {
+    flushPendingChatSave,
+    initChatPersistence,
+    persistChatState,
+} from '../src/core/persist-state.js';
 import { warn } from '../src/foundation/logger.js';
-import { makeChatPersistence } from './test-helpers.js';
+import { deferred, installSummaryContext, makeChatPersistence } from './test-helpers.js';
 
 let saveChat;
 let saveMetadata;
@@ -63,14 +67,88 @@ describe('Chat Persistence init seam', () => {
         expect(saveChat).not.toHaveBeenCalled();
     });
 
-    it('swallows a rejecting chat write through the warn log', async () => {
+    it('catches a rejecting background chat write and retries it on flush', async () => {
         const boom = new Error('boom');
-        saveChat.mockRejectedValue(boom);
+        saveChat.mockRejectedValueOnce(boom);
         await persistChatState({ chatSave: 'deferred' });
 
-        await expect(flushPendingChatSave()).resolves.toBeUndefined();
-        expect(warn).toHaveBeenCalledWith('Could not save chat:', boom);
-
         await vi.runAllTimersAsync();
+        expect(warn).toHaveBeenCalledWith('Could not save chat:', boom);
+        expect(saveChat).toHaveBeenCalledOnce();
+
+        await flushPendingChatSave();
+        expect(saveChat).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps the save failure when the failure notice throws', async () => {
+        const boom = new Error('boom');
+        const notifyError = new Error('notice failed');
+        const onChatSaveError = vi.fn(() => {
+            throw notifyError;
+        });
+        initChatPersistence({ saveChat, saveMetadata, onChatSaveError });
+        saveChat.mockRejectedValueOnce(boom);
+
+        await persistChatState({ chatSave: 'deferred' });
+        await vi.runAllTimersAsync();
+
+        expect(onChatSaveError).toHaveBeenCalledWith(boom);
+        expect(warn).toHaveBeenCalledWith('Could not save chat:', boom);
+        expect(warn).toHaveBeenCalledWith('Could not notify chat save failure:', notifyError);
+
+        await flushPendingChatSave();
+        expect(saveChat).toHaveBeenCalledTimes(2);
+    });
+
+    it.each(['immediate', 'deferred'])(
+        'rejects a stale %s save after a chat switch without touching the new pending save',
+        async (chatSave) => {
+            const metadataGate = deferred();
+            saveMetadata.mockImplementationOnce(() => metadataGate.promise);
+
+            const staleSave = persistChatState({ chatSave });
+            installSummaryContext();
+            await persistChatState({ chatSave: 'deferred' });
+
+            metadataGate.resolve();
+            await expect(staleSave).rejects.toThrow('The chat changed');
+            expect(saveChat).not.toHaveBeenCalled();
+
+            await flushPendingChatSave();
+            expect(saveChat).toHaveBeenCalledOnce();
+        },
+    );
+
+    it('serializes an immediate save behind an in-flight background save and keeps its retry state', async () => {
+        const backgroundGate = deferred();
+        const saveFailure = new Error('new write failed');
+        saveChat
+            .mockImplementationOnce(() => backgroundGate.promise)
+            .mockRejectedValueOnce(saveFailure);
+        await persistChatState({ chatSave: 'deferred' });
+        await vi.advanceTimersByTimeAsync(1500);
+        expect(saveChat).toHaveBeenCalledOnce();
+
+        const immediateSave = persistChatState();
+        expect(saveChat).toHaveBeenCalledOnce();
+
+        backgroundGate.resolve();
+        await expect(immediateSave).rejects.toBe(saveFailure);
+        expect(saveChat).toHaveBeenCalledTimes(2);
+
+        await flushPendingChatSave();
+        expect(saveChat).toHaveBeenCalledTimes(3);
+    });
+    it('does not write to another chat after waiting for an older write', async () => {
+        const backgroundGate = deferred();
+        saveChat.mockImplementationOnce(() => backgroundGate.promise);
+        await persistChatState({ chatSave: 'deferred' });
+        await vi.advanceTimersByTimeAsync(1500);
+        const queuedSave = flushPendingChatSave();
+        installSummaryContext();
+        const rejected = expect(queuedSave).rejects.toThrow('The chat changed');
+        backgroundGate.resolve();
+        await rejected;
+        expect(saveChat).toHaveBeenCalledOnce();
     });
 });

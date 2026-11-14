@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { RETRY_CONFIG, isRetryableError, parseRetryAfter } from '../src/foundation/retry.js';
+import {
+    RETRY_CONFIG,
+    isRetryableError,
+    parseRetryAfter,
+    sleepOrAbort,
+} from '../src/foundation/retry.js';
 
 describe('parseRetryAfter', () => {
     it('converts a numeric retry-after header string to milliseconds', () => {
@@ -58,5 +63,23 @@ describe('isRetryableError', () => {
     it('matches retryable message patterns case-insensitively and rejects unrelated messages', () => {
         expect(isRetryableError({ message: 'Rate limit exceeded' })).toBe(true);
         expect(isRetryableError({ message: 'invalid API key' })).toBe(false);
+    });
+});
+
+describe('sleepOrAbort', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('returns without scheduling a timer when the signal is already aborted', async () => {
+        vi.useFakeTimers();
+        const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+        const controller = new AbortController();
+        controller.abort();
+
+        await sleepOrAbort(60_000, controller.signal);
+
+        expect(setTimeoutSpy).not.toHaveBeenCalled();
+        expect(vi.getTimerCount()).toBe(0);
     });
 });

@@ -87,14 +87,11 @@ const foundationMocks = vi.hoisted(() => {
             await getContext().saveMetadata();
         });
         context.saveChat.mockImplementation(async () => {
-            try {
-                const fn = getContext().saveChat;
-                if (typeof fn === 'function') {
-                    await fn();
-                }
-            } catch {
-                // Runtime context unavailable in some tests.
+            const ctx = getContext();
+            if (typeof ctx.saveChat !== 'function') {
+                return;
             }
+            await ctx.saveChat();
         });
         context.reloadCurrentChat.mockImplementation(async () => {
             const fn = getContext().reloadCurrentChat;

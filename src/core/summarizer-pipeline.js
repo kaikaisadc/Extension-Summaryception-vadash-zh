@@ -119,10 +119,21 @@ function hasSourceTokenMetadata(metadata = {}) {
  * @returns {string}
  */
 function buildSummarizerPrompt({ template, storyTxt, contextStr, settings, profile }) {
-    // replaceAll on purpose: every placeholder occurrence is replaced; user templates may repeat one.
-    const prompt = template
-        .replaceAll('{{player_name}}', getName1())
-        .replaceAll('{{context_str}}', contextStr || '(none yet)')
-        .replaceAll('{{story_txt}}', storyTxt);
+    // One pass over the known placeholders: every occurrence is replaced, an
+    // empty context falls back, and inserted text (including `$&`, `$$`, or
+    // another placeholder) stays literal because the callback returns it.
+    const playerName = getName1();
+    const prompt = template.replace(
+        /\{\{player_name\}\}|\{\{context_str\}\}|\{\{story_txt\}\}/g,
+        (placeholder) => {
+            if (placeholder === '{{player_name}}') {
+                return playerName;
+            }
+            if (placeholder === '{{context_str}}') {
+                return contextStr || '(none yet)';
+            }
+            return storyTxt;
+        },
+    );
     return appendLayer0PromptConstraints(prompt, settings, profile);
 }
