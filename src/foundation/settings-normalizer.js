@@ -309,6 +309,15 @@ function ensurePromptCustomDrafts(settings) {
 }
 
 /**
+ * Validate usable prompt text without trimming the user's stored content.
+ * @param {unknown} value
+ * @returns {value is string}
+ */
+function hasUsablePromptText(value) {
+    return typeof value === 'string' && value.trim().length > 0;
+}
+
+/**
  * Normalize the eight prompt fields through PROMPT_DEFINITIONS. A legal
  * built-in selection keeps its key and takes that preset's current text; a
  * non-empty custom text is left exactly as the user wrote it. An unknown
@@ -329,7 +338,7 @@ function normalizePromptSettings(settings) {
     for (const { presetKey, settingKey, defaultPreset, presets } of PROMPT_DEFINITIONS) {
         const preset = settingsRecord[presetKey];
         const promptText = settingsRecord[settingKey];
-        const hasUsableText = typeof promptText === 'string' && promptText.trim().length > 0;
+        const hasUsableText = hasUsablePromptText(promptText);
         const isBuiltIn =
             typeof preset === 'string' &&
             preset !== 'custom' &&
@@ -350,7 +359,7 @@ function normalizePromptSettings(settings) {
                 continue;
             }
             const draft = drafts[settingKey];
-            if (typeof draft === 'string' && draft.trim().length > 0) {
+            if (hasUsablePromptText(draft)) {
                 settingsRecord[settingKey] = draft;
                 changed = true;
                 continue;

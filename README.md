@@ -6,12 +6,19 @@
 
 - 上游项目：[vadash/Extension-Summaryception](https://github.com/vadash/Extension-Summaryception)
 - 上游版本：**24.29.0**
-- 本中文版本：**24.29.4**
+- 本中文版本：**24.29.5**
 - 本仓库：[kaikaisadc/Extension-Summaryception-vadash-zh](https://github.com/kaikaisadc/Extension-Summaryception-vadash-zh)
 - 许可：**AGPL-3.0-or-later**，完整许可证见 [LICENSE](LICENSE)
 - 原作者与上游历史完整保留在 Git 历史中；本仓库以独立仓库形式发布，在 GitHub 上**不是上游的 fork 网络成员**，但保留了上游提交历史。
 
 本分支重写了中文界面、中文帮助文本和八项中文提示词，并调整了持久化命名空间。它**不是从零开始的原创项目**，也不声称全部内容为原创；上游代码、结构、英文提示词和文档归属仍然有效。`README.en.md` 是上游英文 README 的原文快照，`LICENSE` 保持原样。
+
+## 24.29.5 更新说明
+
+- 将聊天扫描的设置与保留规则统一放入选项对象，并同步全部三处调用，消除参数数量警告。
+- 复用提示词非空字符串判断，降低归一化函数的分支复杂度，保持原有校验条件和回退顺序。
+- 将两处同行的 `@param`、`@returns` 展开为标准 JSDoc 格式，恢复静态工具对返回值说明的识别。
+- 本次为代码整理，未调整默认配置、存储结构或提示词内容；仅做静态检查，未运行测试或模型调用。
 
 ## 24.29.4 更新说明
 
