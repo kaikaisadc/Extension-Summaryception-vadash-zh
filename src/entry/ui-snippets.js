@@ -1,5 +1,6 @@
 import { TOAST_TITLE, layerLabel, listNonEmptyLayers } from '../foundation/constants.js';
 import { refreshUi } from '../foundation/refresh.js';
+import { error } from '../foundation/logger.js';
 import { getChatStore } from '../foundation/chat-store.js';
 import { getSnippetDisplayMeta } from '../core/snippet-metadata.js';
 import {
@@ -324,7 +325,7 @@ function onSnippetTextClick() {
         return;
     }
 
-    startSnippetEdit($(this), position, snippetText.text);
+    startSnippetEdit($(this), position, snippetText);
 }
 
 function getSnippetPosition(element) {
@@ -338,10 +339,10 @@ function getSnippetPosition(element) {
     return { layerIdx, snippetIdx };
 }
 
-function startSnippetEdit(textEl, position, initialText) {
+function startSnippetEdit(textEl, position, snapshot) {
     // Enter and blur can both request a finish; the latch keeps it to one run.
     let finished = false;
-    const textarea = $('<textarea class="sc-snippet-edit"></textarea>').val(initialText);
+    const textarea = $('<textarea class="sc-snippet-edit"></textarea>').val(snapshot.text);
     const finish = async (shouldSave) => {
         if (finished) {
             return;
@@ -349,15 +350,27 @@ function startSnippetEdit(textEl, position, initialText) {
         finished = true;
         try {
             if (shouldSave) {
-                await commitSnippetEdit(textarea, position);
+                if (!(await commitSnippetEdit(textarea, position, snapshot))) {
+                    finished = false;
+                }
             }
+        } catch (err) {
+            error('Snippet edit failed:', err);
+            toastr.error('摘要保存失败，编辑内容已保留。', TOAST_TITLE);
+            finished = false;
         } finally {
-            updateSnippetBrowser();
+            if (finished) {
+                textarea.remove();
+                updateSnippetBrowser();
+            }
         }
     };
 
     textarea
         .on('keydown', async function (e) {
+            if (e.isComposing || e.originalEvent?.isComposing) {
+                return;
+            }
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 await finish(true);
@@ -375,12 +388,14 @@ function startSnippetEdit(textEl, position, initialText) {
     textarea.focus().select();
 }
 
-async function commitSnippetEdit(textarea, position) {
+async function commitSnippetEdit(textarea, position, snapshot) {
     const result = await updateSnippetTextAt(
         position.layerIdx,
         position.snippetIdx,
         textarea.val(),
         {
+            expectedSnippet: snapshot.snippet,
+            expectedText: snapshot.text,
             gate: /** @type {import('../core/foreground-gate.js').ForegroundGate} */ (
                 foregroundGate
             ),
@@ -391,7 +406,11 @@ async function commitSnippetEdit(textarea, position) {
             timeOut: 1500,
         });
     }
-    // Stay silent for 'unchanged', 'missing', and 'empty': the re-render restores the true state, and an accidental Enter must not toast.
+    if (result.status === 'stale' || result.status === 'missing') {
+        toastr.warning('摘要已变化，未覆盖当前记忆。请复制编辑内容后重新打开编辑。', TOAST_TITLE);
+        return false;
+    }
+    return true;
 }
 
 function resizeSnippetEdit(textarea) {
@@ -422,14 +441,10 @@ async function onSnippetRedoClick() {
         return;
     }
 
-    toastr.info(
-        `正在重做第 ${target.range[0]}-${target.range[1]} 回合的摘要……`,
-        TOAST_TITLE,
-        {
-            timeOut: 3000,
-            progressBar: true,
-        },
-    );
+    toastr.info(`正在重做第 ${target.range[0]}-${target.range[1]} 回合的摘要……`, TOAST_TITLE, {
+        timeOut: 3000,
+        progressBar: true,
+    });
     await runSnippetRegeneration($(this), position);
 }
 
@@ -439,12 +454,19 @@ async function onSnippetDeleteClick() {
         return;
     }
 
-    const result = await deleteSnippetAt(position.layerIdx, position.snippetIdx, {
-        gate: /** @type {import('../core/foreground-gate.js').ForegroundGate} */ (foregroundGate),
-    });
-    if (result.status === 'deleted') {
-        refreshUi();
-        toastr.info(`已从第 ${result.layerIndex} 层移除摘要片段`, TOAST_TITLE);
+    try {
+        const result = await deleteSnippetAt(position.layerIdx, position.snippetIdx, {
+            gate: /** @type {import('../core/foreground-gate.js').ForegroundGate} */ (
+                foregroundGate
+            ),
+        });
+        if (result.status === 'deleted') {
+            refreshUi();
+            toastr.info(`已从第 ${result.layerIndex} 层移除摘要片段`, TOAST_TITLE);
+        }
+    } catch (err) {
+        error('Snippet deletion failed:', err);
+        toastr.error('删除摘要失败，请重试。', TOAST_TITLE);
     }
 }
 
@@ -480,6 +502,9 @@ async function runSnippetRegeneration(btn, position) {
                 .withRun,
         });
         handleRegenerationResult(result);
+    } catch (err) {
+        error('Snippet regeneration failed:', err);
+        toastr.error('重做摘要失败，请重试。', TOAST_TITLE);
     } finally {
         btn.prop('disabled', false).removeClass('fa-spinner fa-spin').addClass('fa-rotate-right');
     }

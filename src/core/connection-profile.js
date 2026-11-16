@@ -151,20 +151,14 @@ function parseProfileResponse(raw) {
         return dataContent;
     }
 
-    if (raw !== null && raw !== undefined && typeof raw === 'object') {
-        const str = JSON.stringify(raw);
-        warn('[Connection] Unexpected return type from sendRequest:', str.substring(0, 500));
-        throw new ConnectionError(
-            `Connection Profile returned unexpected type: ${typeof raw}. ` +
-                `Preview: ${str.substring(0, 200)}. ` +
-                'Please report this on the Summaryception GitHub.',
-            { retryable: false },
-        );
-    }
-
-    throw new ConnectionError('Connection Profile returned an empty or invalid response.', {
-        retryable: true,
-    });
+    const preview = JSON.stringify(raw);
+    warn('[Connection] Unexpected return type from sendRequest:', preview.substring(0, 500));
+    throw new ConnectionError(
+        `Connection Profile returned unexpected type: ${typeof raw}. ` +
+            `Preview: ${preview.substring(0, 200)}. ` +
+            'Please report this on the Summaryception GitHub.',
+        { retryable: false },
+    );
 }
 
 /**

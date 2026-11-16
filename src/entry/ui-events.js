@@ -10,7 +10,7 @@ import { error, warn } from '../foundation/logger.js';
 import { clampInteger } from '../foundation/numeric.js';
 import { selectOff, setComplexity, setEnabled } from '../foundation/operation-mode.js';
 import { refreshFull, refreshPreview, refreshUi } from '../foundation/refresh.js';
-import { getChatStore } from '../foundation/chat-store.js';
+import { getChatStore, isCurrentChatStore } from '../foundation/chat-store.js';
 import { getSettings, resetSettingsToDefaults, saveSettings } from '../foundation/settings.js';
 import {
     deriveAdvancedEngineTuning,
@@ -225,6 +225,7 @@ function bindTextareaHandlers() {
  * @returns {void}
  */
 function triggerImport(notify, gate) {
+    const store = getChatStore();
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
@@ -236,14 +237,27 @@ function triggerImport(notify, gate) {
         }
         try {
             const text = await file.text();
+            if (!isCurrentChatStore(store)) {
+                toastr.warning(
+                    '聊天已切换，已取消此次导入。请在目标聊天中重新选择文件。',
+                    TOAST_TITLE,
+                );
+                return;
+            }
             const data = JSON.parse(text);
             const outcome = await importSummaryceptionMemory(data, { notify, gate });
             if (outcome.status === 'invalid') {
-                toastr.error('记忆格式不兼容或已损坏；5.x旧版摘要不能直接导入。本次未替换当前记忆。');
+                toastr.error(
+                    '记忆格式不兼容或已损坏；5.x旧版摘要不能直接导入。本次未替换当前记忆。',
+                );
                 return;
             }
             if (outcome.status === 'failed') {
                 toastr.error('导入失败，请查看控制台。');
+                return;
+            }
+            if (outcome.status === 'blocked') {
+                toastr.warning('请在前台生成结束后再导入记忆。', TOAST_TITLE);
                 return;
             }
             toastr.success(`已导入记忆，共加载 ${outcome.count} 条摘要片段。`, TOAST_TITLE, {
@@ -274,11 +288,9 @@ function onResetDefaults() {
     resetSettingsToDefaults();
 
     saveAndRefreshUi();
-    toastr.success(
-        '高级设置已恢复默认值。记忆模式、连接设置和摘要记忆均已保留。',
-        TOAST_TITLE,
-        { timeOut: 4000 },
-    );
+    toastr.success('高级设置已恢复默认值。记忆模式、连接设置和摘要记忆均已保留。', TOAST_TITLE, {
+        timeOut: 4000,
+    });
 }
 
 /**
@@ -298,11 +310,9 @@ function bindClickHandlers(notify, gate) {
             });
         } catch (e) {
             error('Clear memory failed:', e);
-            toastr.error(
-                '清空失败。请打开 F12；若反复出现，请更新分层摘要扩展。',
-                TOAST_TITLE,
-                { timeOut: 8000 },
-            );
+            toastr.error('清空失败。请打开 F12；若反复出现，请更新分层摘要扩展。', TOAST_TITLE, {
+                timeOut: 8000,
+            });
         }
     });
 
@@ -325,11 +335,7 @@ function bindClickHandlers(notify, gate) {
     $(document).on('click', '#sc_reset_defaults', onResetDefaults);
 
     $(document).on('click', '#sc_insert_recall_template', function () {
-        if (
-            !confirm(
-                '用重复召回示例替换当前注入包装模板？',
-            )
-        ) {
+        if (!confirm('用重复召回示例替换当前注入包装模板？')) {
             return;
         }
         $('#sc_injection_template').val(RECALL_REPEAT_INJECTION_TEMPLATE).trigger('change');

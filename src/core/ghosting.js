@@ -5,7 +5,12 @@ import {
     rangesFromSortedIndices,
     resolveScIdsToIndices,
 } from '../foundation/message-identity.js';
-import { bumpSummaryStoreMutationEpoch, getChatStore } from '../foundation/chat-store.js';
+import {
+    assertCurrentChatStore,
+    bumpSummaryStoreMutationEpoch,
+    getChatStore,
+    isCurrentChatStore,
+} from '../foundation/chat-store.js';
 import { getEffectiveSettings } from '../foundation/settings.js';
 import { debug, error, warn } from '../foundation/logger.js';
 import { persistChatState } from './persist-state.js';
@@ -15,6 +20,7 @@ import { collectSnippetSourceIds } from './snippet-provenance.js';
  * @typedef {object} GhostRangeOptions
  * @property {boolean} [showProgress] - Open a notify progress handle for manual work.
  * @property {string} [kind] - Prompt-effect queue label.
+ * @property {boolean} [requireProvenance] - Hide only sources still referenced by current snippets.
  * @property {'immediate' | 'deferred'} [chatSave] - Chat-file persistence mode.
  * @property {import('./notify.js').NotifyAdapter} [notify] - Adapter for progress events. When absent, the work runs silent.
  * @property {import('./foreground-gate.js').ForegroundGate} gate - The Foreground Gate every hide crosses; a hide requested mid-generation is deferred through it.
@@ -28,7 +34,11 @@ import { collectSnippetSourceIds } from './snippet-provenance.js';
  * @returns {Promise<void>}
  */
 export async function repairGhostingForRange(startIdx, endIdx, options) {
-    await ghostMessagesInRange(startIdx, endIdx, { kind: 'ghost-repair', ...options });
+    await ghostMessagesInRange(startIdx, endIdx, {
+        kind: 'ghost-repair',
+        requireProvenance: true,
+        ...options,
+    });
 }
 
 /**
@@ -51,7 +61,8 @@ function setGhostedMessageIds(store, nextIds) {
 
 /**
  * Reconcile Ghosting ownership with Snippet provenance. The desired id set is
- * every sourceMessageId across all layers. Desired messages that still need
+ * every sourceMessageId across all layers except messages hidden outside
+ * this store's ownership. Desired messages that still need
  * ownership or a visual hide go through the ranged hide engine. Owned ids no
  * longer referenced by any layer are released through the unhide path.
  * Ownership ends up exactly the desired set. Desired ids whose messages no
@@ -62,7 +73,18 @@ function setGhostedMessageIds(store, nextIds) {
 export async function syncGhosting(options) {
     const chat = getChat();
     const store = getChatStore();
-    const desired = collectSnippetSourceIds(store.layers);
+    const owned = new Set(store.ghostedMessageIds);
+    const foreignHiddenIds = new Set(
+        chat
+            .filter(
+                (message) =>
+                    message &&
+                    isVisuallyHidden(message) &&
+                    !owned.has(message.sc_vadash_zh_id ?? ''),
+            )
+            .map((message) => message.sc_vadash_zh_id),
+    );
+    const desired = collectSnippetSourceIds(store.layers).filter((id) => !foreignHiddenIds.has(id));
     const desiredOwned = new Set(desired);
 
     const staleIds = store.ghostedMessageIds.filter((id) => !desiredOwned.has(id));
@@ -73,7 +95,14 @@ export async function syncGhosting(options) {
         await unhideRanges({ chat, store, ranges: staleRanges, notify: options.notify });
     }
 
-    for (const range of rangesFromSortedIndices(resolveScIdsToIndices(chat, desired))) {
+    assertCurrentChatStore(store);
+    const targets = captureGhostRanges(
+        chat,
+        rangesFromSortedIndices(resolveScIdsToIndices(chat, desired)),
+    );
+    for (const target of targets) {
+        assertGhostRangeCurrent(chat, store, target);
+        const { range } = target;
         if (collectHideRanges(chat, store, range).length === 0) {
             continue;
         }
@@ -84,6 +113,7 @@ export async function syncGhosting(options) {
         hidden += getRangeSize(range);
     }
 
+    assertCurrentChatStore(store);
     setGhostedMessageIds(store, desired);
     return { hidden, unhidden: countRangeMessages(staleRanges) };
 }
@@ -98,12 +128,12 @@ export async function clearAllGhosting(_options = {}) {
     const chat = getChat();
     const store = getChatStore();
     const ranges = rangesFromSortedIndices(resolveScIdsToIndices(chat, store.ghostedMessageIds));
-    for (const range of ranges) {
-        if (chat !== getChat() || store !== getChatStore()) {
-            throw new Error('The chat changed while clearing Ghosting ownership.');
-        }
-        await executeSlashRangeCommand('unhide', range, warn);
+    for (const target of captureGhostRanges(chat, ranges)) {
+        assertGhostRangeCurrent(chat, store, target);
+        await executeSlashRangeCommand('unhide', target.range, warn);
+        assertGhostRangeCurrent(chat, store, target);
     }
+    assertCurrentChatStore(store);
     setGhostedMessageIds(store, []);
 }
 
@@ -127,9 +157,41 @@ export function countGhostedMessages() {
  * @returns {Promise<void>}
  */
 export async function ghostMessagesInRange(startIdx, endIdx, options) {
+    const chat = getChat();
+    const store = getChatStore();
+    const range = normalizeRange(startIdx, endIdx, chat.length);
+    if (!range) {
+        return;
+    }
+    const sourceIds = chat
+        .slice(range[0], range[1] + 1)
+        .map(ensureMessageScId)
+        .filter((id) => id !== null);
     await options.gate.runEffect({
         kind: getGhostEffectKind(startIdx, endIdx, options),
-        apply: async (ctx) => await ghostMessagesInRangeEffect(startIdx, endIdx, ctx, options),
+        apply: async (ctx) => {
+            // A queued hide belongs to this chat and these messages, even if
+            // another chat or a reordered range is active when the gate opens.
+            if (!isCurrentChatStore(store) || chat !== getChat()) {
+                return true;
+            }
+            const desired = options.requireProvenance
+                ? new Set(collectSnippetSourceIds(store.layers))
+                : null;
+            const ids = desired ? sourceIds.filter((id) => desired.has(id)) : sourceIds;
+            const targets = captureGhostRanges(
+                chat,
+                rangesFromSortedIndices(resolveScIdsToIndices(chat, ids)),
+            );
+            for (const target of targets) {
+                assertGhostRangeCurrent(chat, store, target);
+                const [first, last] = target.range;
+                if (!(await ghostMessagesInRangeEffect(first, last, ctx, options))) {
+                    return false;
+                }
+            }
+            return true;
+        },
     });
 }
 
@@ -161,33 +223,37 @@ async function ghostMessagesInRangeEffect(startIdx, endIdx, ctx, options) {
             : null;
     let processed = 0;
 
-    for (const hideRange of ranges) {
-        if (!ctx.canContinue()) {
-            return deferRemainingGhosting(hideRange[0], range[1], options, progress);
+    try {
+        for (const target of captureGhostRanges(chat, ranges)) {
+            assertGhostRangeCurrent(chat, store, target);
+            const hideRange = target.range;
+            if (!ctx.canContinue()) {
+                return deferRemainingGhosting(hideRange[0], range[1]);
+            }
+
+            const applied = await applyHideRange({
+                chat,
+                store,
+                target,
+                canContinue: ctx.canContinue,
+                chatSave: options.chatSave || 'immediate',
+            });
+
+            if (!applied) {
+                return deferRemainingGhosting(hideRange[0], range[1]);
+            }
+
+            processed += getRangeSize(hideRange);
+            if (notify && progress) {
+                notify.update(progress, { processed });
+            }
         }
-
-        const applied = await applyHideRange({
-            chat,
-            store,
-            range: hideRange,
-            canContinue: ctx.canContinue,
-            chatSave: options.chatSave || 'immediate',
-        });
-
-        if (!applied) {
-            return deferRemainingGhosting(hideRange[0], range[1], options, progress);
-        }
-
-        processed += getRangeSize(hideRange);
+        return true;
+    } finally {
         if (notify && progress) {
-            notify.update(progress, { processed });
+            notify.clear(progress);
         }
     }
-
-    if (notify && progress) {
-        notify.clear(progress);
-    }
-    return true;
 }
 
 /**
@@ -197,22 +263,24 @@ async function ghostMessagesInRangeEffect(startIdx, endIdx, ctx, options) {
  * @param {object} p
  * @param {ChatMessage[]} p.chat
  * @param {SummaryceptionStore} p.store
- * @param {[number, number]} p.range
+ * @param {{ range: [number, number], ids: (string | null)[] }} p.target
  * @param {() => boolean} p.canContinue - Whether a generation replaced the one this hide started against.
  * @param {'immediate' | 'deferred'} p.chatSave
  * @returns {Promise<boolean>}
  */
-async function applyHideRange({ chat, store, range, canContinue, chatSave }) {
-    markGhostedRange(chat, store, range);
-    await persistChatState({ chatSave });
+async function applyHideRange({ chat, store, target, canContinue, chatSave }) {
+    assertGhostRangeCurrent(chat, store, target);
+    markGhostedRange(chat, store, target.range);
+    await persistChatState({ chatSave, store });
+    assertGhostRangeCurrent(chat, store, target);
 
     if (!canContinue()) {
         return false;
     }
 
-    await executeSlashRangeCommand('hide', range, error);
-
-    await persistChatState({ chatSave });
+    await executeSlashRangeCommand('hide', target.range, error);
+    assertGhostRangeCurrent(chat, store, target);
+    await persistChatState({ chatSave, store });
     return true;
 }
 
@@ -220,15 +288,10 @@ async function applyHideRange({ chat, store, range, canContinue, chatSave }) {
  * Hand the rest of a range back to the gate after a prompt mutation freeze.
  * @param {number} nextStart
  * @param {number} endIdx
- * @param {GhostRangeOptions} options
- * @param {unknown} progress
  * @returns {boolean} Always false; the gate re-runs the effect once the freeze lifts.
  */
-function deferRemainingGhosting(nextStart, endIdx, options, progress) {
+function deferRemainingGhosting(nextStart, endIdx) {
     debug(`Ghosting ${nextStart}-${endIdx} deferred; foreground generation is active.`);
-    if (progress) {
-        options.notify?.clear(progress);
-    }
     return false;
 }
 
@@ -260,7 +323,9 @@ function messageNeedsGhosting(msg, store) {
         return false;
     }
 
-    const owned = typeof msg.sc_vadash_zh_id === 'string' && store.ghostedMessageIds.includes(msg.sc_vadash_zh_id);
+    const owned =
+        typeof msg.sc_vadash_zh_id === 'string' &&
+        store.ghostedMessageIds.includes(msg.sc_vadash_zh_id);
     return !owned || !isVisuallyHidden(msg);
 }
 
@@ -287,7 +352,9 @@ function isGhostableMessage(msg, store) {
  * @returns {boolean}
  */
 function isUserHidden(msg, store) {
-    const owned = typeof msg.sc_vadash_zh_id === 'string' && store.ghostedMessageIds.includes(msg.sc_vadash_zh_id);
+    const owned =
+        typeof msg.sc_vadash_zh_id === 'string' &&
+        store.ghostedMessageIds.includes(msg.sc_vadash_zh_id);
     return isVisuallyHidden(msg) && !owned;
 }
 
@@ -330,14 +397,17 @@ function markGhostedRange(chat, store, range) {
  */
 async function unhideRanges({ chat, store, ranges, progress = null, notify }) {
     let processed = 0;
-    for (const range of ranges) {
+    for (const target of captureGhostRanges(chat, ranges)) {
+        assertGhostRangeCurrent(chat, store, target);
+        const { range } = target;
         await executeSlashRangeCommand('unhide', range, warn);
+        assertGhostRangeCurrent(chat, store, target);
         clearGhostedRange(chat, store, range);
         processed += getRangeSize(range);
         if (notify && progress) {
             notify.update(progress, { processed });
         }
-        await persistChatState();
+        await persistChatState({ store });
     }
 }
 
@@ -359,6 +429,39 @@ function clearGhostedRange(chat, store, range) {
         store,
         store.ghostedMessageIds.filter((id) => !ids.has(id)),
     );
+}
+
+/**
+ * Capture stable IDs before any command or save can yield to a chat edit.
+ * @param {ChatMessage[]} chat
+ * @param {Array<[number, number]>} ranges
+ * @returns {Array<{ range: [number, number], ids: (string | null)[] }>}
+ */
+function captureGhostRanges(chat, ranges) {
+    return ranges.map((range) => ({
+        range,
+        ids: chat.slice(range[0], range[1] + 1).map((message) => message?.sc_vadash_zh_id ?? null),
+    }));
+}
+
+/**
+ * @param {ChatMessage[]} chat
+ * @param {SummaryceptionStore} store
+ * @param {{ range: [number, number], ids: (string | null)[] }} target
+ * @returns {void}
+ */
+function assertGhostRangeCurrent(chat, store, target) {
+    assertCurrentChatStore(store);
+    if (
+        chat !== getChat() ||
+        target.ids.some(
+            (id, offset) => (chat[target.range[0] + offset]?.sc_vadash_zh_id ?? null) !== id,
+        )
+    ) {
+        throw new Error(
+            'Chat messages changed while applying Ghosting; retry with the current message IDs.',
+        );
+    }
 }
 
 /**

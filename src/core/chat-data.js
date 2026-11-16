@@ -1,5 +1,5 @@
 import { getChat } from '../foundation/context.js';
-import { getChatStore } from '../foundation/chat-store.js';
+import { assertCurrentChatStore, getChatStore } from '../foundation/chat-store.js';
 import { removeMessageIdentities } from '../foundation/message-identity.js';
 import { refreshFull } from '../foundation/refresh.js';
 import { commitSnippetMutation } from './snippet-commit.js';
@@ -22,6 +22,7 @@ import { removeCheckpoints } from './continuity-checkpoint.js';
  */
 export async function clearChatData() {
     const store = getChatStore();
+    const chat = getChat();
     await commitSnippetMutation(
         store,
         () => {
@@ -30,11 +31,11 @@ export async function clearChatData() {
         { ghost: 'clear' },
     );
 
-    const chat = getChat();
+    assertCurrentChatStore(store);
     removeMessageIdentities(chat);
     removeMessageTokenCaches(chat);
     removeCheckpoints(chat);
 
-    await persistChatState({ chatSave: 'immediate' });
+    await persistChatState({ chatSave: 'immediate', store });
     refreshFull();
 }

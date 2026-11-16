@@ -23,7 +23,7 @@ function validateImportPayload(data) {
  * arrives as a structured status for the entry layer to notice.
  * @param {any} data - Parsed JSON payload
  * @param {{ notify?: import('../core/notify.js').NotifyAdapter, gate: import('../core/foreground-gate.js').ForegroundGate }} options - Import notices and the Foreground Gate the commit crosses.
- * @returns {Promise<{ status: 'imported', count: number } | { status: 'invalid' } | { status: 'failed', cause: unknown }>}
+ * @returns {Promise<{ status: 'imported', count: number } | { status: 'invalid' } | { status: 'blocked' } | { status: 'failed', cause: unknown }>}
  */
 export async function importSummaryceptionMemory(data, { notify, gate }) {
     if (!validateImportPayload(data)) {
@@ -32,6 +32,9 @@ export async function importSummaryceptionMemory(data, { notify, gate }) {
 
     try {
         const store = getChatStore();
+        if ((await gate.promptWorkGate('memory import')) === 'blocked') {
+            return { status: 'blocked' };
+        }
         await commitSnippetMutation(
             store,
             () => {

@@ -1,5 +1,9 @@
 import { warn } from '../foundation/logger.js';
-import { getChatStore } from '../foundation/chat-store.js';
+import {
+    assertCurrentChatStore,
+    getChatStore,
+    isCurrentChatStore,
+} from '../foundation/chat-store.js';
 
 const CHAT_SAVE_DEBOUNCE_MS = 1500;
 
@@ -49,17 +53,13 @@ function requirePersistence() {
  * Persist chat metadata and chat state in one step. Metadata is always saved
  * immediately; chat file writes may be deferred. The two writes are not an
  * atomic transaction: metadata may already be saved when the chat write fails.
- * @param {{ chatSave?: ChatSaveMode }} [options]
+ * @param {{ chatSave?: ChatSaveMode, store?: SummaryceptionStore }} [options]
  * @returns {Promise<void>} Rejects when either required write fails.
  */
-export async function persistChatState({ chatSave = 'immediate' } = {}) {
-    const store = getChatStore();
+export async function persistChatState({ chatSave = 'immediate', store = getChatStore() } = {}) {
+    assertCurrentChatStore(store);
     await requirePersistence().saveMetadata();
-    if (store !== getChatStore()) {
-        throw new Error(
-            'The chat changed while metadata was saving; the stale chat save was skipped.',
-        );
-    }
+    assertCurrentChatStore(store);
 
     if (chatSave === 'deferred') {
         scheduleChatSave(store);
@@ -81,7 +81,7 @@ export async function flushPendingChatSave() {
         return;
     }
 
-    if (pending.store !== getChatStore()) {
+    if (!isCurrentChatStore(pending.store)) {
         clearPendingChatSave();
         return;
     }
@@ -95,11 +95,7 @@ export async function flushPendingChatSave() {
  * @returns {Promise<void>}
  */
 async function saveChatImmediately(store) {
-    if (store !== getChatStore()) {
-        throw new Error(
-            'The chat changed while metadata was saving; the stale chat save was skipped.',
-        );
-    }
+    assertCurrentChatStore(store);
     clearScheduledChatSaveTimer();
     const pending = ensurePendingChatSave(store);
     await savePendingChat(pending);
@@ -124,13 +120,8 @@ function ensurePendingChatSave(store) {
  * @returns {void}
  */
 function scheduleChatSave(store) {
-    clearPendingChatSave();
-    const pending = {
-        store,
-        timer: /** @type {ReturnType<typeof setTimeout> | null} */ (null),
-        write: /** @type {Promise<void> | null} */ (null),
-    };
-    pendingChatSave = pending;
+    const pending = ensurePendingChatSave(store);
+    clearScheduledChatSaveTimer();
     pending.timer = setTimeout(() => {
         if (pendingChatSave !== pending) {
             return;
@@ -158,12 +149,9 @@ async function savePendingChat(pending) {
                 // for the newer mutation instead of inheriting that outcome.
             }
         }
-        if (pending.store !== getChatStore()) {
-            throw new Error(
-                'The chat changed while waiting to save; the stale chat save was skipped.',
-            );
-        }
+        assertCurrentChatStore(pending.store);
         await requirePersistence().saveChat();
+        assertCurrentChatStore(pending.store);
     })();
     pending.write = write;
 
@@ -175,7 +163,7 @@ async function savePendingChat(pending) {
         }
     }
 
-    if (!pending.write && pendingChatSave === pending) {
+    if (!pending.write && pending.timer === null && pendingChatSave === pending) {
         clearPendingChatSave();
     }
 }
@@ -186,7 +174,7 @@ async function savePendingChat(pending) {
  */
 async function saveChatInBackground(pending) {
     try {
-        if (pending.store !== getChatStore()) {
+        if (!isCurrentChatStore(pending.store)) {
             if (pendingChatSave === pending) {
                 clearPendingChatSave();
             }

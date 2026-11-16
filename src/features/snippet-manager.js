@@ -21,14 +21,14 @@ import {
 /**
  * @param {number} layerIndex
  * @param {number} snippetIndex
- * @returns {{ status: 'found', text: string } | { status: 'missing', text: '' }}
+ * @returns {{ status: 'found', text: string, snippet: SummaryceptionSnippet } | { status: 'missing', text: '' }}
  */
 export function getSnippetTextAt(layerIndex, snippetIndex) {
     const snippet = getSnippetAt(getChatStore(), layerIndex, snippetIndex);
     if (!snippet) {
         return { status: 'missing', text: '' };
     }
-    return { status: 'found', text: snippet.text };
+    return { status: 'found', text: snippet.text, snippet };
 }
 
 /**
@@ -71,8 +71,8 @@ export function isRegenerationCandidate(layerIndex, snippetIndex, queue) {
  * @param {number} layerIndex
  * @param {number} snippetIndex
  * @param {string} text
- * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate }} options
- * @returns {Promise<{ status: 'updated' | 'missing' | 'empty' | 'unchanged' }>}
+ * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate, expectedSnippet?: SummaryceptionSnippet, expectedText?: string }} options
+ * @returns {Promise<{ status: 'updated' | 'missing' | 'empty' | 'unchanged' | 'stale' }>}
  */
 export async function updateSnippetTextAt(layerIndex, snippetIndex, text, options) {
     const store = getChatStore();
@@ -81,6 +81,12 @@ export async function updateSnippetTextAt(layerIndex, snippetIndex, text, option
         return { status: 'missing' };
     }
 
+    if (
+        (options.expectedSnippet && snippet !== options.expectedSnippet) ||
+        (typeof options.expectedText === 'string' && snippet.text !== options.expectedText)
+    ) {
+        return { status: 'stale' };
+    }
     const newText = String(text).trim();
     if (!newText) {
         return { status: 'empty' };

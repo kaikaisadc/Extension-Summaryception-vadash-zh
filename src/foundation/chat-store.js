@@ -20,12 +20,34 @@ export function getChatStore() {
 }
 
 /**
- * Reads the store first so the persisted metadata keeps the repaired shape.
+ * Compare ownership without normalizing or replacing the store's layer arrays.
+ * @param {SummaryceptionStore} store
+ * @returns {boolean}
+ */
+export function isCurrentChatStore(store) {
+    return getChatMetadata()[MODULE_NAME] === store;
+}
+
+/**
+ * Reject stale work before it can use host APIs for a different chat.
+ * @param {SummaryceptionStore} store
+ * @returns {void}
+ */
+export function assertCurrentChatStore(store) {
+    if (!isCurrentChatStore(store)) {
+        throw new Error('The chat changed; the stale operation was stopped.');
+    }
+}
+
+/**
+ * Save only the store that owned this operation, checking again after the host wait.
+ * @param {SummaryceptionStore} [store]
  * @returns {Promise<void>}
  */
-export async function saveChatStore() {
-    getChatStore();
+export async function saveChatStore(store = getChatStore()) {
+    assertCurrentChatStore(store);
     await saveMetadata();
+    assertCurrentChatStore(store);
 }
 
 /**
