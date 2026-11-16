@@ -1,10 +1,15 @@
-import { getChat } from '../foundation/context.js';
+import { getChat, getContext } from '../foundation/context.js';
 import { getMessageIndexByScId } from '../foundation/message-identity.js';
 import { getChatStore } from '../foundation/chat-store.js';
 import { buildPassageFromRangeWithStats } from '../core/chatutils.js';
 import { buildPassageNameCensus } from '../core/refusal-guard.js';
 import { commitSnippetMutation } from '../core/snippet-commit.js';
 import { buildSnippetMetadataFromText } from '../core/snippet-metadata.js';
+import {
+    buildSnapshotBasis,
+    fingerprintSourceRange,
+    isSnapshotStoreCurrent,
+} from '../core/summarizer-snapshot.js';
 
 /**
  * @typedef {{ status: 'ready', snippet: SummaryceptionSnippet, range: [number, number], context?: string }} RegenerationTarget
@@ -161,8 +166,21 @@ export async function regenerateSnippetAt(layerIndex, snippetIndex, options) {
  */
 async function regenerateSnippetWithTarget(target, notify, gate, dispatch) {
     const chat = getChat();
+    const store = getChatStore();
     const [rangeStart, rangeEnd] = target.range;
+    const snapshot = {
+        ...buildSnapshotBasis({ chatRef: chat, store, ctx: getContext() }),
+        sourceFingerprint: fingerprintSourceRange(chat, rangeStart, rangeEnd),
+    };
+    const isCurrent = () =>
+        store === getChatStore() &&
+        isSnapshotStoreCurrent(snapshot, getContext(), store) &&
+        store.layers[0]?.includes(target.snippet) &&
+        snapshot.sourceFingerprint === fingerprintSourceRange(chat, rangeStart, rangeEnd);
     const passage = await buildPassageFromRangeWithStats(chat, rangeStart, rangeEnd);
+    if (!isCurrent()) {
+        return { status: 'aborted' };
+    }
     if (!passage.text.trim()) {
         return { status: 'empty-source' };
     }
@@ -184,16 +202,31 @@ async function regenerateSnippetWithTarget(target, notify, gate, dispatch) {
     }
     const newSummary = outcome.text;
 
-    await commitSnippetMutation(
-        getChatStore(),
-        () => {
-            target.snippet.text = newSummary;
-            target.snippet.timestamp = Date.now();
-            target.snippet.regenerated = true;
-            Object.assign(target.snippet, buildSnippetMetadataFromText(newSummary));
+    if (!isCurrent()) {
+        return { status: 'aborted' };
+    }
+    const commit = await gate.commitWhenSafe({
+        kind: 'regeneration',
+        apply: async () => {
+            if (!isCurrent()) {
+                return false;
+            }
+            await commitSnippetMutation(
+                store,
+                () => {
+                    target.snippet.text = newSummary;
+                    target.snippet.timestamp = Date.now();
+                    target.snippet.regenerated = true;
+                    Object.assign(target.snippet, buildSnippetMetadataFromText(newSummary));
+                },
+                { gate },
+            );
+            return true;
         },
-        { gate },
-    );
+    });
+    if (commit !== 'applied') {
+        return { status: commit === 'queued' ? 'blocked' : 'aborted' };
+    }
     return { status: 'regenerated', range: target.range };
 }
 

@@ -177,8 +177,8 @@ function normalizePhysics(value) {
 export function createDefaultContinuity() {
     return {
         turn_count: 0,
-        bonds: {},
-        agendas: {},
+        bonds: Object.create(null),
+        agendas: Object.create(null),
         gm_notes: [],
         physics: {
             location: '',
@@ -200,7 +200,7 @@ export function createDefaultContinuity() {
  */
 function classifyBonds(source, state, sectionVerdicts) {
     /** @type {Record<string, Record<string, unknown>>} */
-    const flags = {};
+    const flags = Object.create(null);
     if (!isRecord(source.bonds)) {
         sectionVerdicts.push('bonds');
         return flags;

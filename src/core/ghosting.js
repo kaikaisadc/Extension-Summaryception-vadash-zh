@@ -89,19 +89,22 @@ export async function syncGhosting(options) {
 }
 
 /**
- * Unhide every message in the chat through the host full-range command and
- * wipe Summaryception ghost ownership.
+ * Unhide only messages owned by this store, then wipe Ghosting ownership.
+ * Foreign hidden messages must remain outside the model context.
  * @param {object} [_options] - Reserved option bag kept for parity with the other Ghosting entry points; Clear releases ownership without a gate.
  * @returns {Promise<void>}
  */
 export async function clearAllGhosting(_options = {}) {
     const chat = getChat();
-    if (chat.length > 0) {
-        await executeSlashCommandsWithOptions(`/unhide 0-${chat.length - 1}`, {
-            showOutput: false,
-        });
+    const store = getChatStore();
+    const ranges = rangesFromSortedIndices(resolveScIdsToIndices(chat, store.ghostedMessageIds));
+    for (const range of ranges) {
+        if (chat !== getChat() || store !== getChatStore()) {
+            throw new Error('The chat changed while clearing Ghosting ownership.');
+        }
+        await executeSlashRangeCommand('unhide', range, warn);
     }
-    setGhostedMessageIds(getChatStore(), []);
+    setGhostedMessageIds(store, []);
 }
 
 /**
@@ -425,5 +428,6 @@ async function executeSlashRangeCommand(command, range, logFailure) {
         });
     } catch (e) {
         logFailure(`Failed to ${command} messages ${formatSlashRange(range)}:`, e);
+        throw e;
     }
 }

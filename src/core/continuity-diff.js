@@ -18,7 +18,7 @@ function isSameStateValue(a, b) {
  */
 function diffStateFields(before, after) {
     /** @type {Record<string, unknown>} */
-    const fields = {};
+    const fields = Object.create(null);
     const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])];
     for (const key of keys) {
         if (!isSameStateValue(before[key], after[key])) {
@@ -37,12 +37,12 @@ function diffStateFields(before, after) {
  */
 function diffStateRecordSection(before, after) {
     /** @type {Record<string, unknown>} */
-    const report = {};
+    const report = Object.create(null);
     const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])];
     for (const key of keys) {
-        if (!(key in before)) {
+        if (!Object.hasOwn(before, key)) {
             report[key] = { added: after[key] };
-        } else if (!(key in after)) {
+        } else if (!Object.hasOwn(after, key)) {
             report[key] = { removed: before[key] };
         } else {
             const fields = diffStateFields(
@@ -149,7 +149,7 @@ function diffSectionReport(section, before, after) {
  */
 export function diffContinuityStates(prior, next) {
     /** @type {Record<string, unknown>} */
-    const report = {};
+    const report = Object.create(null);
     for (const section of DIFF_SECTIONS) {
         const before = prior[section];
         const after = next[section];

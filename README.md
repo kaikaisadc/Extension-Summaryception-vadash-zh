@@ -6,12 +6,20 @@
 
 - 上游项目：[vadash/Extension-Summaryception](https://github.com/vadash/Extension-Summaryception)
 - 上游版本：**24.29.0**
-- 本中文版本：**24.29.2**
+- 本中文版本：**24.29.3**
 - 本仓库：[kaikaisadc/Extension-Summaryception-vadash-zh](https://github.com/kaikaisadc/Extension-Summaryception-vadash-zh)
 - 许可：**AGPL-3.0-or-later**，完整许可证见 [LICENSE](LICENSE)
 - 原作者与上游历史完整保留在 Git 历史中；本仓库以独立仓库形式发布，在 GitHub 上**不是上游的 fork 网络成员**，但保留了上游提交历史。
 
 本分支重写了中文界面、中文帮助文本和八项中文提示词，并调整了持久化命名空间。它**不是从零开始的原创项目**，也不声称全部内容为原创；上游代码、结构、英文提示词和文档归属仍然有效。`README.en.md` 是上游英文 README 的原文快照，`LICENSE` 保持原样。
+
+## 24.29.3 更新说明
+
+- 清空记忆只取消本扩展拥有的消息隐藏，保留用户及其他扩展隐藏的消息；切换聊天后停止剩余的取消隐藏操作。
+- 隐藏或取消隐藏命令失败会向调用方报告，避免失败后仍继续提交；取消隐藏失败时保留归属记录，便于重试。
+- 重做摘要校验聊天、记忆版本与来源原文；切换聊天、编辑原文或修改记忆后丢弃过期结果，并通过前台生成门控提交。
+- 连续性状态及其诊断差异使用无原型字典，避免 `__proto__` 等特殊键改变记录原型或在保存时丢失。
+- 本版本尚未进行真实 SillyTavern 实机验证。
 
 ## 24.29.2 更新说明
 
